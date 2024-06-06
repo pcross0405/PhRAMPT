@@ -423,13 +423,13 @@ class phonon_manager:
     #----------------------------------------------------------------------------------------------------------------#
     
     # method for ploting with matplotlib
-    def MPLplot(self):
+    def plot_mpl(self):
 
         import matplotlib.pyplot as plt
 
         x = np.linspace(0, 1, len(self.klist))
 
-        fig, ax = plt.subplots()
+        _, ax = plt.subplots()
 
         for branch in self.frequencies:
             y = self.frequencies[branch]
