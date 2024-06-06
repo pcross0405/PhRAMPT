@@ -3,7 +3,7 @@
 #----------------------------------------------------------------------------------------------------------------#
 
 import numpy as np
-from lammps import lammps, LMP_STYLE_ATOM, LMP_TYPE_ARRAY, LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR, LMP_STYLE_SCALAR
+from lammps import lammps, LMP_STYLE_ATOM, LMP_TYPE_ARRAY, LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR
 
 #----------------------------------------------------------------------------------------------------------------#
 
