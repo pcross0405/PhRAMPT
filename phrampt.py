@@ -3,7 +3,7 @@
 #----------------------------------------------------------------------------------------------------------------#
 
 import numpy as np
-from lammps import lammps, LMP_STYLE_ATOM, LMP_TYPE_ARRAY, LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR, LMP_STYLE_LOCAL
+from lammps import lammps, LMP_STYLE_ATOM, LMP_TYPE_ARRAY, LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR, LMP_STYLE_SCALAR
 
 #----------------------------------------------------------------------------------------------------------------#
 
@@ -26,7 +26,6 @@ class phonon_manager:
         # get box parameters for finding center atoms
         self.lat_params = self.lmp.extract_box()
         self.natoms = self.lmp.get_natoms()
-        self.CenterAtomCheck(1.99999)
 
         # create dictionaries for tracking atom information
         self.all_info = {}
@@ -40,9 +39,7 @@ class phonon_manager:
         # if h, k, or l remain None the fineness of that dimesion is automatically determined
         # see KPath method for more details on fineness determination
         self.klist = 'all'
-        self.h = None
-        self.k = None
-        self.l = None
+        self.hkl = None
 
         # initialize variables needed for phonon calc
         # displacement is amount atoms are displaced in angstroms
@@ -65,11 +62,33 @@ class phonon_manager:
 
         else:
             raise SystemExit(f'The {units} units style is not supported. Please change to metal, real, or si units.')
+        
+        # adjust simulation box parameters
+        # add gap between atoms and simulation boundary and make boundary nonperiodic
+        # this prevents atoms from moving through the boundary since that changes the
+        # interatomic distance which is needed for accurate dispersion
+        self.lmp.commands_string(f'''
+            replicate 3 3 3
+            change_box all &
+            x delta {-0.5} {0.5} &
+            y delta {-0.5} {0.5} &
+            z delta {-0.5} {0.5} &
+            boundary mm mm mm &
+            units box
+            ''')
+        
+        # find atoms that are in center unit cell of the 3x3x3 supercell
+        # LAMMPS replicates cells one layer at a time
+        # first layer of 3x3x3 has 9 cells
+        # second layer has center cell at the fifth unit cell replication, so 14 cells to get to center
+        for i in range(13*self.natoms + 1, 14*self.natoms + 1):
+            self.lmp.command(f'group CenterAtoms id {i}')
 
         # fetch information from all atoms and centeral atoms
         self.lmp.commands_string('''
             compute CenterInfo CenterAtoms property/atom id type mass
             compute AllInfo all property/atom id type mass
+            run 0
             ''')
         
         # extract compute information from LAMMPS into numpy arrays
@@ -81,7 +100,6 @@ class phonon_manager:
             uncompute CenterInfo
             uncompute AllInfo
             group CenterAtoms delete
-            region CellCenter delete
             ''')
 
         # organize information into dictionaries
@@ -102,99 +120,20 @@ class phonon_manager:
 
     #----------------------------------------------------------------------------------------------------------------#
     #----------------------------------------------------- METHODS --------------------------------------------------#
-    #----------------------------------------------------------------------------------------------------------------#
-
-    # method for getting info of atoms from cell of interest
-    # this method will only be used during initialization
-    def CenterAtomCheck(self, multiplier):
-
-        # create region in center of cell
-        # add all atoms in region to group
-        if multiplier != 2.0:
-            self.lmp.command('replicate 3 3 3')
-        
-        self.lmp.commands_string(f'''
-            region CellCenter prism {self.lat_params[1][0]} {multiplier*self.lat_params[1][0]} &
-                                    {self.lat_params[1][1]} {multiplier*self.lat_params[1][1]} &
-                                    {self.lat_params[1][2]} {multiplier*self.lat_params[1][2]} &
-                                    {self.lat_params[2]} {self.lat_params[4]} {self.lat_params[3]}
-            group CenterAtoms region CellCenter
-            compute CountAtoms CenterAtoms count/type atom
-            ''')
-        
-        # check if number of atoms in group matches natoms
-        num_atoms = self.lmp.numpy.extract_compute('CountAtoms', LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR).astype(np.float64)
-
-        # if numbers don't match and multiplier has been changed,
-        # then some unexpected behavior has occurred and program exits
-        if int(np.sum(num_atoms)) != int(self.natoms) and multiplier == 2.0:
-            raise SystemExit('Number of centeral atoms cannot be identified. Please report this!')
-        
-        # if numbers don't match, retry with new multiplier
-        elif int(np.sum(num_atoms)) != int(self.natoms):
-            self.lmp.commands_string('''
-                uncompute CountAtoms
-                group CenterAtoms delete
-                region CellCenter delete
-                ''')
-            return self.CenterAtomCheck(2.0)
-
-        # clean up before proceeding
-        self.lmp.command('uncompute CountAtoms')
-    
-    #----------------------------------------------------------------------------------------------------------------#
-
-    # method for displacing second atom and getting energy response
-    def DispAtom2(self, atom2_id):
-
-        # create LAMMPS group for atom2
-        # add back one since it was removed earlier to match 0 based indexing of python
-        self.lmp.command(f'group Atom2 id {int(atom2_id) + 1}')
-
-        # create list for atomic displacements
-        disp2 = [0, 0, self.displacement]
-
-        # numpy array for tracking forces
-        positive_disp_energies = np.zeros((1,3))
-        negative_disp_energies = np.zeros((1,3))
-
-        # loop for permuting second atom's displacements
-        for j in range(0,3):
-
-            # cyclic permutation of displacemnt for second atom
-            disp2[j] = disp2[(j + 2) % 3]
-            disp2[(j + 2) % 3] = disp2[(j + 1) % 3]
-
-            # displace atom2 in positive direction
-            self.lmp.command(f'displace_atoms Atom2 move {disp2[0]} {disp2[1]} {disp2[2]}')
-            self.lmp.command('run 0')
-
-            # get potential energy
-            positive_disp_energies[0][j] = self.lmp.get_thermo('pe')
-
-            # displace atom2 in negative direction
-            self.lmp.command(f'displace_atoms Atom2 move {-2*disp2[0]} {-2*disp2[1]} {-2*disp2[2]}')
-            self.lmp.command('run 0')
-
-            # get potential energy
-            negative_disp_energies[0][j] = self.lmp.get_thermo('pe')
-
-            # reset atom2 back to equilibrium position
-            self.lmp.command(f'displace_atoms Atom2 move {disp2[0]} {disp2[1]} {disp2[2]}')
-
-        # clean up before exiting method
-        self.lmp.command('group Atom2 delete')
-        
-        return -(1/(2*self.displacement))*(positive_disp_energies - negative_disp_energies)
-    
-    #----------------------------------------------------------------------------------------------------------------#
+    #----------------------------------------------------------------------------------------------------------------#    
 
     # method for displacing atoms and fetching resulting potential energy
     def DispAtoms(self, atom1_id, atom2_id):
 
-        # create LAMMPS group for atom1
+        # create LAMMPS group for atoms 1 and 2
         # add back 1 since it was removed earlier to match 0 based indexing of python
-        self.lmp.command(f'group Atom1 id {int(atom1_id) + 1}')
+        # setup compute that reports the interatomic forces
+        self.lmp.commands_string(f'''
+            group Atom1 id {int(atom1_id) + 1}
+            group Atom2 id {int(atom2_id) + 1}
+            compute Forces Atom2 group/group Atom1
+            run 0 
+            ''')
 
         # create list for atom1 displacements
         disp1 = [0, 0, self.displacement]
@@ -210,16 +149,22 @@ class phonon_manager:
             disp1[(i + 2) % 3] = disp1[(i + 1) % 3]
 
             # displace atom1 in positive direction
-            self.lmp.commands_string(f'displace_atoms Atom1 move {disp1[0]} {disp1[1]} {disp1[2]}')
+            self.lmp.commands_string(f'''
+                displace_atoms Atom1 move {disp1[0]} {disp1[1]} {disp1[2]}
+                run 0
+                ''')
             
-            # displace atom2
-            positive_disp_forces = self.DispAtom2(atom2_id)
+            # find interatomic forces after displacement
+            positive_disp_forces = self.lmp.numpy.extract_compute('Forces', LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR).astype(np.float64)
 
             # displace atom1 in negative direction
-            self.lmp.command(f'displace_atoms Atom1 move {-2*disp1[0]} {-2*disp1[1]} {-2*disp1[2]}')
+            self.lmp.command(f'''
+                displace_atoms Atom1 move {-2*disp1[0]} {-2*disp1[1]} {-2*disp1[2]}
+                run 0 
+                ''')
 
-            # displace atom2
-            negative_disp_forces = self.DispAtom2(atom2_id)
+            # find interatomic forces after displacement
+            negative_disp_forces = self.lmp.numpy.extract_compute('Forces', LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR).astype(np.float64)
 
             # update force constant matrix
             fcm[i,:] = -(1/(2*self.displacement))*(positive_disp_forces - negative_disp_forces)
@@ -228,7 +173,11 @@ class phonon_manager:
             self.lmp.command(f'displace_atoms Atom1 move {disp1[0]} {disp1[1]} {disp1[2]}')
 
         # clean up before proceeding
-        self.lmp.command('group Atom1 delete')
+        self.lmp.commands_string('''
+            uncompute Forces
+            group Atom1 delete                     
+            group Atom2 delete
+            ''')
 
         return fcm
     
@@ -285,6 +234,11 @@ class phonon_manager:
         for center_atom in self.center_info:
             atom1 = int(center_atom) % self.natoms
 
+            # if atoms are the same, skip
+            # self interaction is evaluated later
+            if other_atom == center_atom:
+                continue
+
             # loop for displacing all atoms
             for other_atom in self.all_info:
                 atom2 = int(other_atom) % self.natoms
@@ -296,6 +250,24 @@ class phonon_manager:
                 
                 # store force constant matrix (fcm) in force constants dictionary
                 force_constants[f'{atom2}_{atom1}'].append(fcm)
+
+        # compute self interaction according to acoustic sum rule
+        # force matrices between the same atoms are compute as the negative sum of the other force matrices
+        force_on_self = 0
+        count = 0
+        index1 = 0
+        index2 = 0
+        for force_matrix in force_constants:
+            force_on_self -= sum(force_constants[force_matrix])
+            count += 1
+
+            # once all force matrices between 1 atom and all other atoms are summed, append and redo for next atom
+            if count == self.natoms:
+                force_constants[f'{index1}_{index2}'].append(force_on_self)
+                force_on_self = 0
+                count = 0 
+                index1 += 1
+                index2 += 1
 
         return force_constants, interatomic_dists
 
@@ -320,16 +292,15 @@ class phonon_manager:
         # then auto assign h, k, and l based off of lattice parameters
         if self.klist == 'all':
             self.klist = []
-            if self.h == None:
-                self.h = int(np.ceil(1/(np.linalg.norm(a))*50))
-            if self.k == None:
-                self.k = int(np.ceil(1/(np.linalg.norm(b))*50))
-            if self.l == None:
-                self.l = int(np.ceil(1/(np.linalg.norm(c))*50))
-            for h in range(0, self.h):
-                for k in range(0, self.k):
-                    for l in range(0, self.l):
-                        k_vec = np.array([h/self.h, k/self.k, l/self.l])
+            if self.hkl == None:
+                self.hkl = np.zeros((1,3))
+                self.hkl[0] = int(np.ceil(1/(np.linalg.norm(a))*50))
+                self.hkl[1] = int(np.ceil(1/(np.linalg.norm(b))*50))
+                self.hkl[2] = int(np.ceil(1/(np.linalg.norm(c))*50))
+            for h in range(0, self.hkl[0]):
+                for k in range(0, self.hkl[1]):
+                    for l in range(0, self.hkl[2]):
+                        k_vec = np.array([h/self.hkl[0], k/self.hkl[1], l/self.hkl[2]])
                         self.klist.append(k_vec)
 
             # convert from reduced coordinates to cartesian coordinates
@@ -347,25 +318,25 @@ class phonon_manager:
 
             # interpolate reciprocal space path
             # list is for adding interpolated points to
-            q_points = []
+            q_pts = []
             for q in range(0, len(self.klist) - 1):
                 diff = self.klist[q+1] - self.klist[q]
-                scale = np.ceil(np.linalg.norm(diff))
+                scale = np.linalg.norm(diff)
                 line_values = [self.klist[q] + t*diff for t in np.linspace(0, 1, int(scale*self.resolution))]
-                q_points.append(line_values)
+                q_pts.append(line_values)
 
             # convert q_points from list of numpy arrays to one numpy array of all interpolated points
-            cat_points = q_points[0]
-            for i in range(1,len(q_points)):
-                cat_points = np.concatenate((cat_points, q_points[i]))
+            cat_pts = q_pts[0]
+            for i in range(1,len(q_pts)):
+                cat_pts = np.concatenate((cat_pts, q_pts[i]))
 
             # some points are generated twice so second instance is deleted
-            to_be_del = np.ones(len(cat_points), dtype = bool)
-            for i in range(len(cat_points)):
-                if i != 0 and i % self.resolution == 0:
+            to_be_del = np.ones(len(cat_pts), dtype = bool)
+            for i, q_vec in enumerate(cat_pts):
+                if q_vec[0] == cat_pts[i-1][0] and q_vec[1] == cat_pts[i-1][1] and q_vec[2] == cat_pts[i-1][2]:
                     to_be_del[i] == False
 
-            self.klist = cat_points[to_be_del]
+            self.klist = cat_pts[to_be_del]
 
     #----------------------------------------------------------------------------------------------------------------#
 
@@ -428,10 +399,10 @@ class phonon_manager:
             for branch, freq in enumerate(freq_vals):
                 if freq < 0:
                     freq_vals[branch] = -1*np.sqrt(-1*freq*self.conversion)
-                    self.frequencies[f'{branch}'].append(freq)
+                    self.frequencies[f'{branch}'].append(freq_vals[branch])
                 else:
                     freq_vals[branch] = np.sqrt(freq*self.conversion)
-                    self.frequencies[f'{branch}'].append(freq)
+                    self.frequencies[f'{branch}'].append(freq_vals[branch])
 
     #----------------------------------------------------------------------------------------------------------------#
 
