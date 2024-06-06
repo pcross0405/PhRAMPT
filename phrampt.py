@@ -158,7 +158,7 @@ class phonon_manager:
             positive_disp_forces = self.lmp.numpy.extract_compute('Forces', LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR).astype(np.float64)
 
             # displace atom1 in negative direction
-            self.lmp.command(f'''
+            self.lmp.commands_string(f'''
                 displace_atoms Atom1 move {-2*disp1[0]} {-2*disp1[1]} {-2*disp1[2]}
                 run 0 
                 ''')
@@ -234,14 +234,14 @@ class phonon_manager:
         for center_atom in self.center_info:
             atom1 = int(center_atom) % self.natoms
 
-            # if atoms are the same, skip
-            # self interaction is evaluated later
-            if other_atom == center_atom:
-                continue
-
             # loop for displacing all atoms
             for other_atom in self.all_info:
                 atom2 = int(other_atom) % self.natoms
+
+                # if atoms are the same, skip
+                # self interaction is evaluated later
+                if other_atom == center_atom:
+                    continue
 
                 # find interatomic distance for calculating 
                 # phonon frequencies later on
@@ -264,6 +264,7 @@ class phonon_manager:
             # once all force matrices between 1 atom and all other atoms are summed, append and redo for next atom
             if count == self.natoms:
                 force_constants[f'{index1}_{index2}'].append(force_on_self)
+                interatomic_dists[f'{index1}_{index2}'].append(np.array([0.0, 0.0, 0.0]))
                 force_on_self = 0
                 count = 0 
                 index1 += 1
@@ -293,13 +294,13 @@ class phonon_manager:
         if self.klist == 'all':
             self.klist = []
             if self.hkl == None:
-                self.hkl = np.zeros((1,3))
-                self.hkl[0] = int(np.ceil(1/(np.linalg.norm(a))*50))
-                self.hkl[1] = int(np.ceil(1/(np.linalg.norm(b))*50))
-                self.hkl[2] = int(np.ceil(1/(np.linalg.norm(c))*50))
-            for h in range(0, self.hkl[0]):
-                for k in range(0, self.hkl[1]):
-                    for l in range(0, self.hkl[2]):
+                self.hkl = np.array([0.0, 0.0, 0.0])
+                self.hkl[0] = np.ceil(1/(np.linalg.norm(a))*50)
+                self.hkl[1] = np.ceil(1/(np.linalg.norm(b))*50)
+                self.hkl[2] = np.ceil(1/(np.linalg.norm(c))*50)
+            for h in range(0, int(self.hkl[0])):
+                for k in range(0, int(self.hkl[1])):
+                    for l in range(0, int(self.hkl[2])):
                         k_vec = np.array([h/self.hkl[0], k/self.hkl[1], l/self.hkl[2]])
                         self.klist.append(k_vec)
 
@@ -334,7 +335,7 @@ class phonon_manager:
             to_be_del = np.ones(len(cat_pts), dtype = bool)
             for i, q_vec in enumerate(cat_pts):
                 if q_vec[0] == cat_pts[i-1][0] and q_vec[1] == cat_pts[i-1][1] and q_vec[2] == cat_pts[i-1][2]:
-                    to_be_del[i] == False
+                    to_be_del[i] = False
 
             self.klist = cat_pts[to_be_del]
 
