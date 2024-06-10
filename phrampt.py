@@ -424,7 +424,7 @@ class phonon_manager:
     #----------------------------------------------------------------------------------------------------------------#
     
     # method for ploting with matplotlib
-    def plot_mpl(self):
+    def Plot_mpl(self, rgb=[1,1,1], title=None, xaxis=None, yaxis='Frequency (THz)'):
 
         import matplotlib.pyplot as plt
 
@@ -434,6 +434,36 @@ class phonon_manager:
 
         for branch in self.frequencies:
             y = self.frequencies[branch]
-            ax.plot(x, y, color = 'black')
+            ax.plot(x, y, color=rgb, )
+
+        ax.set_title(title)
+        ax.set_xlabel(xaxis)
+        ax.set_ylabel(yaxis)
 
         plt.savefig('phonon_dispersion.png')
+
+    #----------------------------------------------------------------------------------------------------------------#
+
+    # method for saving calculation as binary
+    def SaveCalc(self, file_name='SaveState.pkl'):
+
+        import pickle
+
+        # print binaries to file that can be loaded later
+        with open(file_name, 'wb') as f:
+            pickle.dump(self.klist, f)
+            pickle.dump(self.d_matrices, f)
+            pickle.dump(self.frequencies, f)
+
+    #----------------------------------------------------------------------------------------------------------------#
+
+    # method for loading dictionaries from previous calculation
+    def LoadCalc(self, file_name='SaveState.pkl'):
+
+        import pickle
+
+        # read in binary and reset previous attributes to current ones
+        with open(file_name, 'rb') as f:
+            self.klist = pickle.load(f)
+            self.d_matrices = pickle.load(f)
+            self.frequencies = pickle.load(f)
