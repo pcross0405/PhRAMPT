@@ -41,13 +41,13 @@ class phonon_manager:
         self.klist = 'all'
         self.hkl = None
         self.hi_sym_pts = None
-        self.knames = None
+        self.knames = []
 
         # initialize variables needed for phonon calc
         # displacement is amount atoms are displaced in angstroms
         # resolution is the number of points interpolated between reciprocal space points
         # conversion is a conversion factor for plotting frequencies in units of THz
-        self.resolution = 50
+        self.resolution = 100
 
         units = self.lmp.extract_global('units')
         if units == 'metal':
@@ -310,10 +310,20 @@ class phonon_manager:
             for i, q in enumerate(self.klist):
                 self.klist[i] = q[0]*b1 + q[1]*b2 + q[2]*b3
 
+            # save high symmetry points for plotting later
+            self.hi_sym_pts = self.klist
             self.klist = np.concatenate(self.klist)
         
         # if something other than 'all' is provided, then interpolate given path
         else:
+
+            # get kpoint labels from klist
+            for i, k_label in enumerate(self.klist):
+                if i >= len(self.klist)/2:
+                    self.knames.append(k_label)
+
+            # clean up klist by removing labels
+            del self.klist[int(len(self.klist)/2):]
 
             # convert from reduced coordinates to cartesian coordinates
             for i, q in enumerate(self.klist):
@@ -451,27 +461,18 @@ class phonon_manager:
         ax.set_title(title)
         ax.set_xlabel(xaxis)
         ax.set_ylabel(yaxis)
-        
-        if self.knames != None:
-            x_vals = []
-            kpoints = self.klist.tolist()
-            for q_point in self.hi_sym_pts:
-                ind = kpoints.index(q_point.tolist())
-                x_vals.append(ind/len(self.klist))
-                kpoints[ind] = None
 
-            plt.xticks(ticks=x_vals, labels=self.knames)
+        # add high symmetry point labels to plot        
+        x_vals = []
+        kpoints = self.klist.tolist()
+        for q_point in self.hi_sym_pts:
+            ind = kpoints.index(q_point.tolist())
+            x_vals.append(ind/len(self.klist))
+            kpoints[ind] = None
+        plt.xticks(ticks=x_vals, labels=self.knames)
         
-
         # functionality for plotting vertical lines at all high symmetry points
         if vgrid == True:
-            x_vals = []
-            kpoints = self.klist.tolist()
-            for q_point in self.hi_sym_pts:
-                ind = kpoints.index(q_point.tolist())
-                x_vals.append(ind/len(self.klist))
-                # update append value in case high symmetry point is repeated
-                kpoints[ind] = None
 
             # last high symmetry point plots awkwardly on top of plot boundary, so remove it
             del x_vals[-1]
