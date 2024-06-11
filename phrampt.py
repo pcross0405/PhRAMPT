@@ -127,61 +127,8 @@ class phonon_manager:
     # method for displacing atoms and fetching resulting potential energy
     def DispAtoms(self, atom1_id, atom2_id):
 
-        # create LAMMPS group for atoms 1 and 2
-        # add back 1 since it was removed earlier to match 0 based indexing of python
-        # setup compute that reports the interatomic forces
-        self.lmp.commands_string(f'''
-            group Atom1 id {int(atom1_id) + 1}
-            group Atom2 id {int(atom2_id) + 1}
-            compute Forces Atom2 group/group Atom1
-            run 0 
-            ''')
-
-        # create list for atom1 displacements
-        disp1 = [0, 0, self.displacement]
-
-        # create force constant matrix
-        fcm = np.zeros((3,3))
-
-        # loop for permuting first atom's displacements
-        for i in range(0,3):
-
-            # cyclic permurtation of displacement for first atom
-            disp1[i] = disp1[(i + 2) % 3]
-            disp1[(i + 2) % 3] = disp1[(i + 1) % 3]
-
-            # displace atom1 in positive direction
-            self.lmp.commands_string(f'''
-                displace_atoms Atom1 move {disp1[0]} {disp1[1]} {disp1[2]}
-                run 0
-                ''')
-            
-            # find interatomic forces after displacement
-            positive_disp_forces = self.lmp.numpy.extract_compute('Forces', LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR).astype(np.float64)
-
-            # displace atom1 in negative direction
-            self.lmp.commands_string(f'''
-                displace_atoms Atom1 move {-2*disp1[0]} {-2*disp1[1]} {-2*disp1[2]}
-                run 0 
-                ''')
-
-            # find interatomic forces after displacement
-            negative_disp_forces = self.lmp.numpy.extract_compute('Forces', LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR).astype(np.float64)
-
-            # update force constant matrix
-            fcm[i,:] = -(1/(2*self.displacement))*(positive_disp_forces - negative_disp_forces)
-
-            # move atom1 back to equilibrium position
-            self.lmp.command(f'displace_atoms Atom1 move {disp1[0]} {disp1[1]} {disp1[2]}')
-
-        # clean up before proceeding
-        self.lmp.commands_string('''
-            uncompute Forces
-            group Atom1 delete                     
-            group Atom2 delete
-            ''')
-
-        return fcm
+        # this method will be overwritten by the inherited classes
+        pass
     
     #----------------------------------------------------------------------------------------------------------------#
 
@@ -510,3 +457,170 @@ class phonon_manager:
             self.klist = pickle.load(f)
             self.d_matrices = pickle.load(f)
             self.frequencies = pickle.load(f)
+
+# this class will compute phonon frequencies by finding pairwise forces between displaced atoms
+# this method is faster, but requires a pairwise potential and will not work for multi-body potentials
+class ForceDisp(phonon_manager):
+
+    # method for displacing atoms and fetching resulting potential energy
+    def DispAtoms(self, atom1_id, atom2_id):
+
+        # create LAMMPS group for atoms 1 and 2
+        # add back 1 since it was removed earlier to match 0 based indexing of python
+        # setup compute that reports the interatomic forces
+        self.lmp.commands_string(f'''
+            group Atom1 id {int(atom1_id) + 1}
+            group Atom2 id {int(atom2_id) + 1}
+            compute Forces Atom2 group/group Atom1
+            run 0 
+            ''')
+
+        # create list for atom1 displacements
+        disp1 = [0, 0, self.displacement]
+
+        # create force constant matrix
+        fcm = np.zeros((3,3))
+
+        # loop for permuting first atom's displacements
+        for i in range(0,3):
+
+            # cyclic permurtation of displacement for first atom
+            disp1[i] = disp1[(i + 2) % 3]
+            disp1[(i + 2) % 3] = disp1[(i + 1) % 3]
+
+            # displace atom1 in positive direction
+            self.lmp.commands_string(f'''
+                displace_atoms Atom1 move {disp1[0]} {disp1[1]} {disp1[2]}
+                run 0
+                ''')
+            
+            # find interatomic forces after displacement
+            positive_disp_forces = self.lmp.numpy.extract_compute('Forces', LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR).astype(np.float64)
+
+            # displace atom1 in negative direction
+            self.lmp.commands_string(f'''
+                displace_atoms Atom1 move {-2*disp1[0]} {-2*disp1[1]} {-2*disp1[2]}
+                run 0 
+                ''')
+
+            # find interatomic forces after displacement
+            negative_disp_forces = self.lmp.numpy.extract_compute('Forces', LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR).astype(np.float64)
+
+            # update force constant matrix
+            fcm[i,:] = -(1/(2*self.displacement))*(positive_disp_forces - negative_disp_forces)
+
+            # move atom1 back to equilibrium position
+            self.lmp.command(f'displace_atoms Atom1 move {disp1[0]} {disp1[1]} {disp1[2]}')
+
+        # clean up before proceeding
+        self.lmp.commands_string('''
+            uncompute Forces
+            group Atom1 delete                     
+            group Atom2 delete
+            ''')
+
+        return fcm
+
+
+# this class will compute phonon frequencies by finding change in potential energy after displacing atoms
+# this method is slower, but will work with any potential including multi-body potentials
+class EngDisp(phonon_manager):
+
+    # method for displacing atoms and fetching resulting potential energy
+    def DispAtom2(self):
+
+        # create list for atom1 displacements
+        disp = [0, 0, self.displacement]
+
+        # create force constant matrix
+        force_vec = np.array([0.0, 0.0, 0.0])
+
+        # loop for permuting first atom's displacements
+        for i in range(0,3):
+
+            # cyclic permurtation of displacement for second atom
+            disp[i] = disp[(i + 2) % 3]
+            disp[(i + 2) % 3] = disp[(i + 1) % 3]
+
+            # displace atom2 in positive direction
+            self.lmp.commands_string(f'''
+                displace_atoms Atom2 move {disp[0]} {disp[1]} {disp[2]}
+                run 0
+                ''')
+            
+            # find potential energy after displacement
+            positive_disp_energy = self.lmp.get_thermo('pe')
+
+            # displace atom2 in negative direction
+            self.lmp.commands_string(f'''
+                displace_atoms Atom2 move {-2*disp[0]} {-2*disp[1]} {-2*disp[2]}
+                run 0 
+                ''')
+
+            # find potential energy after displacement
+            negative_disp_energy = self.lmp.get_thermo('pe')
+
+            # update force constant matrix
+            force_vec[i] = -(1/(2*self.displacement))*(positive_disp_energy - negative_disp_energy)
+
+            # move atom2 back to equilibrium position
+            self.lmp.command(f'displace_atoms Atom2 move {disp[0]} {disp[1]} {disp[2]}')
+
+        return force_vec
+
+    # method for displacing atoms and fetching resulting potential energy
+    def DispAtoms(self, atom1_id, atom2_id):
+
+        # create LAMMPS group for atoms 1 and 2
+        # add back 1 since it was removed earlier to match 0 based indexing of python
+        # setup compute that reports the interatomic forces
+        self.lmp.commands_string(f'''
+            group Atom1 id {int(atom1_id) + 1}
+            group Atom2 id {int(atom2_id) + 1}
+            run 0 
+            ''')
+
+        # create list for atom1 displacements
+        disp = [0, 0, self.displacement]
+
+        # create force constant matrix
+        fcm = np.zeros((3,3))
+
+        # loop for permuting first atom's displacements
+        for i in range(0,3):
+
+            # cyclic permurtation of displacement for first atom
+            disp[i] = disp[(i + 2) % 3]
+            disp[(i + 2) % 3] = disp[(i + 1) % 3]
+
+            # displace atom1 in positive direction
+            self.lmp.commands_string(f'''
+                displace_atoms Atom1 move {disp[0]} {disp[1]} {disp[2]}
+                run 0
+                ''')
+            
+            # find interatomic forces after displacement
+            positive_disp_forces = self.DispAtom2()
+
+            # displace atom1 in negative direction
+            self.lmp.commands_string(f'''
+                displace_atoms Atom1 move {-2*disp[0]} {-2*disp[1]} {-2*disp[2]}
+                run 0 
+                ''')
+
+            # find interatomic forces after displacement
+            negative_disp_forces = self.DispAtom2()
+
+            # update force constant matrix
+            fcm[i,:] = -(1/(2*self.displacement))*(positive_disp_forces - negative_disp_forces)
+
+            # move atom1 back to equilibrium position
+            self.lmp.command(f'displace_atoms Atom1 move {disp[0]} {disp[1]} {disp[2]}')
+
+        # clean up before proceeding
+        self.lmp.commands_string('''
+            group Atom1 delete                     
+            group Atom2 delete
+            ''')
+
+        return fcm
