@@ -40,6 +40,8 @@ class phonon_manager:
         # see KPath method for more details on fineness determination
         self.klist = 'all'
         self.hkl = None
+        self.hi_sym_pts = None
+        self.knames = None
 
         # initialize variables needed for phonon calc
         # displacement is amount atoms are displaced in angstroms
@@ -316,6 +318,9 @@ class phonon_manager:
             # convert from reduced coordinates to cartesian coordinates
             for i, q in enumerate(self.klist):
                 self.klist[i] = q[0]*b1 + q[1]*b2 + q[2]*b3
+            
+            # save high symmetry points for plotting later
+            self.hi_sym_pts = self.klist
 
             # interpolate reciprocal space path
             # list is for adding interpolated points to
@@ -424,24 +429,61 @@ class phonon_manager:
     #----------------------------------------------------------------------------------------------------------------#
     
     # method for ploting with matplotlib
-    def Plot_mpl(self, rgb=[1,1,1], title=None, xaxis=None, yaxis='Frequency (THz)'):
+    def Plot_mpl(
+        self, rgb=[0,0,0], title=None, xaxis=None, yaxis='Frequency (THz)', hline=False, hline_color=[1,0,0],
+        file_name='phonon_dispersion.png', vgrid=True, vgrid_color=[0,0,0], hgrid=False, hgrid_color=[0,0,0]
+    ):
 
         import matplotlib.pyplot as plt
 
+        # create x axis
         x = np.linspace(0, 1, len(self.klist))
 
+        # create subplots, each branch will have its own y axis
         _, ax = plt.subplots()
 
+        # loop through branches plotting the frequencies
         for branch in self.frequencies:
             y = self.frequencies[branch]
-            ax.plot(x, y, color=rgb, )
+            ax.plot(x, y, color=rgb)
 
+        # user can choose how to visualize plot by updating these arguments
         ax.set_title(title)
         ax.set_xlabel(xaxis)
         ax.set_ylabel(yaxis)
+        
+        if self.knames != None:
+            x_vals = []
+            kpoints = self.klist.tolist()
+            for q_point in self.hi_sym_pts:
+                ind = kpoints.index(q_point.tolist())
+                x_vals.append(ind/len(self.klist))
+                kpoints[ind] = None
 
-        plt.savefig('phonon_dispersion.png')
+            plt.xticks(ticks=x_vals, labels=self.knames)
+        
 
+        # functionality for plotting vertical lines at all high symmetry points
+        if vgrid == True:
+            x_vals = []
+            kpoints = self.klist.tolist()
+            for q_point in self.hi_sym_pts:
+                ind = kpoints.index(q_point.tolist())
+                x_vals.append(ind/len(self.klist))
+                # update append value in case high symmetry point is repeated
+                kpoints[ind] = None
+
+            # last high symmetry point plots awkwardly on top of plot boundary, so remove it
+            del x_vals[-1]
+            ax.vlines(x_vals, 0, 1, transform=ax.get_xaxis_transform(), color=vgrid_color, alpha=0.5)
+
+        # functionality for plotting horizontal lines
+        if hline == True:
+            ax.plot(x, np.zeros((1,len(x)))[0], color=hline_color)
+
+        # fix margins and save plot to png 
+        plt.margins(x=0)
+        plt.savefig(file_name)
     #----------------------------------------------------------------------------------------------------------------#
 
     # method for saving calculation as binary
