@@ -2,7 +2,7 @@
 <span style="font-size:0.5em;"><p align="center">PhRAMPT OVERVIEW</p></span>
 -------------------------------------------------------------------------------------------------------  
 
-<span><p align="center">The Phonon Replication And Modeling/Plotting Tool (PhRAMPT) is a tool used assess the accuracy of 
+<span><p align="justify">The Phonon Replication And Modeling/Plotting Tool (PhRAMPT) is a tool used assess the accuracy of 
 interatomic potentials by comparing phonon dispersions generated in LAMMPS to DFT generated data.</p></span>
 
 <span><p align="center">While there are existing packages that compute phonons within LAMMPS, such as Phonopy and the PHONON
