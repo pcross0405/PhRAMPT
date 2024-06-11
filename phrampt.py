@@ -5,10 +5,12 @@
 import numpy as np
 from lammps import lammps, LMP_STYLE_ATOM, LMP_TYPE_ARRAY, LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR
 
-#----------------------------------------------------------------------------------------------------------------#
+#--------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------- CLASS START -----------------------------------------------------#
+#--------------------------------------------------------------------------------------------------------------------#
 
 # class for managing phonon calculation within LAMMPS
-class phonon_manager:
+class PhononManager:
 
     def __init__(self, in_file):
 
@@ -32,6 +34,7 @@ class phonon_manager:
         self.center_info = {}
         self.d_matrices = {}
         self.frequencies = {}
+        self.dft_frequencies = None
 
         # list of reciprocal space points to sample
         # can use phonon_manager.klist = 'all' to sample entire brillouin zone
@@ -127,7 +130,8 @@ class phonon_manager:
     # method for displacing atoms and fetching resulting potential energy
     def DispAtoms(self, atom1_id, atom2_id):
 
-        # this method will be overwritten by the inherited classes
+        # this method will be overwritten by the subclasses classes
+        # see subclasses at end of script
         pass
     
     #----------------------------------------------------------------------------------------------------------------#
@@ -380,12 +384,33 @@ class phonon_manager:
     # method for interpolating frequencies after sampling entire brillouin zone
     # use this after calling obj.Calc() with default self.klist = 'all' to interpolate frequencies along any path
     def Interpolate(self):
-
         pass
 
     #----------------------------------------------------------------------------------------------------------------#
+
+    # method for extracting phonon frequencies from vaspout.h5 file
+    def ReadVasp_h5(self, path='.', h5_file=None):
+
+        import py4vasp as p4v
+
+        # create p4v object from h5 file
+        if h5_file == None:
+            dft_calc = p4v.Calculation.from_path(path)
+        else:
+            dft_calc = p4v.Calculation.from_file(h5_file)
+
+        # extract phonon frequencies from calculation
+        phonon_dict = dft_calc.phonon_band.to_dict()
+
+        # loop through dictionary to organize frequencies by branch
+        for i in range(0, len(phonon_dict['bands'][0])):
+            self.dft_frequencies[f'{i}'] = []
+            for branch in phonon_dict['bands']:
+                self.dft_frequencies.append(branch[i])
+
+    #----------------------------------------------------------------------------------------------------------------#
     
-    # method for ploting with matplotlib
+    # method for plotting with matplotlib
     def Plot_mpl(
         self, rgb=[0,0,0], title=None, xaxis=None, yaxis='Frequency (THz)', zeroline=False, zeroline_rgb=[1,0,0],
         file_name='phonon_dispersion.png', vgrid=True, vgrid_rgb=[0,0,0], hgrid=False, hgrid_rgb=[0,0,0], dpi=1000
@@ -436,6 +461,13 @@ class phonon_manager:
         # fix margins and save plot to png 
         plt.margins(x=0)
         plt.savefig(file_name, dpi=dpi)
+
+    #----------------------------------------------------------------------------------------------------------------#
+
+    # method for plotting with plotly
+    def Plot_plotly(self):
+        pass
+
     #----------------------------------------------------------------------------------------------------------------#
 
     # method for saving calculation as binary
@@ -466,10 +498,13 @@ class phonon_manager:
 #------------------------------------------------- END OF CLASS -----------------------------------------------------#
 #--------------------------------------------------------------------------------------------------------------------#
 
+#--------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------- CLASS START -----------------------------------------------------#
+#--------------------------------------------------------------------------------------------------------------------#
 
 # this class will compute phonon frequencies by finding pairwise forces between displaced atoms
 # this method is faster, but requires a pairwise potential and will not work for multi-body potentials
-class ForceDisp(phonon_manager):
+class Pairwise(PhononManager):
 
     # method for displacing atoms and fetching resulting potential energy
     def DispAtoms(self, atom1_id, atom2_id):
@@ -531,12 +566,16 @@ class ForceDisp(phonon_manager):
         return fcm
     
 #--------------------------------------------------------------------------------------------------------------------#
-#------------------------------------------------- END OF CLASS -----------------------------------------------------#
+#--------------------------------------------------- CLASS END ------------------------------------------------------#
+#--------------------------------------------------------------------------------------------------------------------#
+
+#--------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------- CLASS START -----------------------------------------------------#
 #--------------------------------------------------------------------------------------------------------------------#
 
 # this class will compute phonon frequencies by finding change in potential energy after displacing atoms
 # this method is slower, but will work with any potential including multi-body potentials
-class EngDisp(phonon_manager):
+class General(PhononManager):
 
     # method for displacing atoms and fetching resulting potential energy
     def DispAtom2(self):
@@ -638,3 +677,7 @@ class EngDisp(phonon_manager):
             ''')
 
         return fcm
+    
+#--------------------------------------------------------------------------------------------------------------------#
+#--------------------------------------------------- CLASS END ------------------------------------------------------#
+#--------------------------------------------------------------------------------------------------------------------#
