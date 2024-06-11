@@ -387,8 +387,8 @@ class phonon_manager:
     
     # method for ploting with matplotlib
     def Plot_mpl(
-        self, rgb=[0,0,0], title=None, xaxis=None, yaxis='Frequency (THz)', hline=False, hline_color=[1,0,0],
-        file_name='phonon_dispersion.png', vgrid=True, vgrid_color=[0,0,0], hgrid=False, hgrid_color=[0,0,0]
+        self, rgb=[0,0,0], title=None, xaxis=None, yaxis='Frequency (THz)', zeroline=False, zeroline_rgb=[1,0,0],
+        file_name='phonon_dispersion.png', vgrid=True, vgrid_rgb=[0,0,0], hgrid=False, hgrid_rgb=[0,0,0], dpi=1000
     ):
 
         import matplotlib.pyplot as plt
@@ -398,16 +398,6 @@ class phonon_manager:
 
         # create subplots, each branch will have its own y axis
         _, ax = plt.subplots()
-
-        # loop through branches plotting the frequencies
-        for branch in self.frequencies:
-            y = self.frequencies[branch]
-            ax.plot(x, y, color=rgb)
-
-        # user can choose how to visualize plot by updating these arguments
-        ax.set_title(title)
-        ax.set_xlabel(xaxis)
-        ax.set_ylabel(yaxis)
 
         # add high symmetry point labels to plot        
         x_vals = []
@@ -423,15 +413,29 @@ class phonon_manager:
 
             # last high symmetry point plots awkwardly on top of plot boundary, so remove it
             del x_vals[-1]
-            ax.vlines(x_vals, 0, 1, transform=ax.get_xaxis_transform(), color=vgrid_color, alpha=0.5)
+            ax.vlines(x_vals, 0, 1, transform=ax.get_xaxis_transform(), color=vgrid_rgb, alpha=0.5)
 
-        # functionality for plotting horizontal lines
-        if hline == True:
-            ax.plot(x, np.zeros((1,len(x)))[0], color=hline_color)
+        # functionality for plotting horizontal grid lines
+        if hgrid == True:
+            ax.grid(axis='y', color=hgrid_rgb, alpha=0.5)
+
+        # functionality for plotting horizontal line at zero
+        if zeroline == True:
+            ax.plot(x, np.zeros((1,len(x)))[0], color=zeroline_rgb)
+
+        # loop through branches plotting the frequencies
+        for branch in self.frequencies:
+            y = self.frequencies[branch]
+            ax.plot(x, y, color=rgb)
+
+        # user can choose how to visualize plot by updating these arguments
+        ax.set_title(title)
+        ax.set_xlabel(xaxis)
+        ax.set_ylabel(yaxis)
 
         # fix margins and save plot to png 
         plt.margins(x=0)
-        plt.savefig(file_name)
+        plt.savefig(file_name, dpi=dpi)
     #----------------------------------------------------------------------------------------------------------------#
 
     # method for saving calculation as binary
@@ -457,6 +461,11 @@ class phonon_manager:
             self.klist = pickle.load(f)
             self.d_matrices = pickle.load(f)
             self.frequencies = pickle.load(f)
+
+#--------------------------------------------------------------------------------------------------------------------#
+#------------------------------------------------- END OF CLASS -----------------------------------------------------#
+#--------------------------------------------------------------------------------------------------------------------#
+
 
 # this class will compute phonon frequencies by finding pairwise forces between displaced atoms
 # this method is faster, but requires a pairwise potential and will not work for multi-body potentials
@@ -520,7 +529,10 @@ class ForceDisp(phonon_manager):
             ''')
 
         return fcm
-
+    
+#--------------------------------------------------------------------------------------------------------------------#
+#------------------------------------------------- END OF CLASS -----------------------------------------------------#
+#--------------------------------------------------------------------------------------------------------------------#
 
 # this class will compute phonon frequencies by finding change in potential energy after displacing atoms
 # this method is slower, but will work with any potential including multi-body potentials
@@ -567,6 +579,8 @@ class EngDisp(phonon_manager):
             self.lmp.command(f'displace_atoms Atom2 move {disp[0]} {disp[1]} {disp[2]}')
 
         return force_vec
+    
+    #----------------------------------------------------------------------------------------------------------------#
 
     # method for displacing atoms and fetching resulting potential energy
     def DispAtoms(self, atom1_id, atom2_id):
