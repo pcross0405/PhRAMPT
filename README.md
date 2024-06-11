@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------------------------------  
-<span style="font-size:0.5em;"><p align="center">PhRAMPT OVERVIEW</p></span>
+<span style="font-size:300%;"><p align="center">PhRAMPT OVERVIEW</p></span>
 
 -------------------------------------------------------------------------------------------------------  
 
@@ -17,7 +17,7 @@ ease of use. Further, extracting phonon frequencies for user customized post pro
 allowing this package to be extended by users in nearly any way they desire.</p></span>
 
 -------------------------------------------------------------------------------------------------------  
-<span style="font-size:0.5em;"><p align="center">INSTALLATION INSTRUCTIONS</p></span>
+<span style="font-size:300%;"><p align="center">INSTALLATION INSTRUCTIONS</p></span>
 
 -------------------------------------------------------------------------------------------------------  
 
@@ -38,7 +38,7 @@ allowing this package to be extended by users in nearly any way they desire.</p>
    "pip install dist/'*.whl'" 
 
 -------------------------------------------------------------------------------------------------------  
-<span style="font-size:0.5em;"><p align="center">DEPENDENCIES</p></span>
+<span style="font-size:300%;"><p align="center">DEPENDENCIES</p></span>
 
 -------------------------------------------------------------------------------------------------------  
 
@@ -64,11 +64,11 @@ REQUIRED FOR DFT COMPARISON
    - [py4vasp](https://www.vasp.at/py4vasp/latest/)
 
 ---------------------------------------------------------------------------------------------------------  
-<span style="font-size:0.5em;"><p align="center">REPORTING ISSUES</p></span>
+<span style="font-size:300%;"><p align="center">REPORTING ISSUES</p></span>
 
 ---------------------------------------------------------------------------------------------------------  
 
 Please report any issues to "https://github.com/pcross0405/PhRAMPT/issues"  
 
 -------------------------------------------------------------------------------------------------------------------------  
-<span style="font-size:0.5em;"><p align="center">SEE SAMPLES DIRECTORY FOR AN EXAMPLE OF HOW TO RUN THE PACKAGE FROM A PYTHON SCRIPT</p></span>
+<span style="font-size:300%
