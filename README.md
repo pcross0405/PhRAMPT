@@ -72,5 +72,5 @@ Please report any issues to "https://github.com/pcross0405/PhRAMPT/issues"
 
 -------------------------------------------------------------------------------------------------------------------------  
 <p align="center">
-<h1 style="font-size:150%;">SEE SAMPLES DIRECTORY FOR AN EXAMPLE OF HOW TO RUN THE PACKAGE FROM A PYTHON SCRIPT</h1>
+SEE SAMPLES DIRECTORY FOR AN EXAMPLE OF HOW TO RUN THE PACKAGE FROM A PYTHON SCRIPT
 </p>
