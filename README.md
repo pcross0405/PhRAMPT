@@ -1,8 +1,6 @@
 -------------------------------------------------------------------------------------------------------  
 <h1><p align="center">PhRAMPT OVERVIEW</p></h1>
 
--------------------------------------------------------------------------------------------------------  
-
 <p align="justify">The Phonon Replication And Modeling/Plotting Tool (PhRAMPT) is a tool used assess the 
 accuracy of  interatomic potentials by comparing phonon dispersions generated in LAMMPS to DFT generated data.
 </p>
@@ -18,8 +16,6 @@ allowing this package to be extended by users in nearly any way they desire.</p>
 
 -------------------------------------------------------------------------------------------------------  
 <h1><p align="center">INSTALLATION INSTRUCTIONS</p></h1>
-
--------------------------------------------------------------------------------------------------------  
 
 1) Inside that directory type on the command line  
    "git clone https://github.com/pcross0405/PhRAMPT.git"
@@ -39,8 +35,6 @@ allowing this package to be extended by users in nearly any way they desire.</p>
 
 -------------------------------------------------------------------------------------------------------  
 <h1><p align="center">DEPENDENCIES</p></h1>
-
--------------------------------------------------------------------------------------------------------  
 
 REQUIRED FOR CALCULATING PHONON FREQUENCIES
 
@@ -65,8 +59,6 @@ REQUIRED FOR DFT COMPARISON
 
 ---------------------------------------------------------------------------------------------------------  
 <h1><p align="center">REPORTING ISSUES</p></h1>
-
----------------------------------------------------------------------------------------------------------  
 
 Please report any issues to "https://github.com/pcross0405/PhRAMPT/issues"  
 
