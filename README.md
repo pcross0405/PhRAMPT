@@ -1,23 +1,23 @@
 -------------------------------------------------------------------------------------------------------  
-<span style="font-size:300%;"><p align="center">PhRAMPT OVERVIEW</p></span>
+<h1><p align="center">PhRAMPT OVERVIEW</p></h1>
 
 -------------------------------------------------------------------------------------------------------  
 
-<span><p align="justify">The Phonon Replication And Modeling/Plotting Tool (PhRAMPT) is a tool used assess the 
+<p align="justify">The Phonon Replication And Modeling/Plotting Tool (PhRAMPT) is a tool used assess the 
 accuracy of  interatomic potentials by comparing phonon dispersions generated in LAMMPS to DFT generated data.
-</p></span>
+</p>
 
-<span><p align="justify">While there are existing packages that compute phonons within LAMMPS, such as Phonopy 
+<p align="justify">While there are existing packages that compute phonons within LAMMPS, such as Phonopy 
 and the PHONON package in LAMMPS, they offer much more functionality which naturally increases the complexity when 
-using these packages.</p></span>
+using these packages.</p>
 
-<span><p align="justify">This package is designed to be very straightforward in its use, offering phonon dispersion 
+<p align="justify">This package is designed to be very straightforward in its use, offering phonon dispersion 
 comparisons in as little as 5 lines of Python script. What this package lacks in functionality it makes up for in
 ease of use. Further, extracting phonon frequencies for user customized post processing is made easy 
-allowing this package to be extended by users in nearly any way they desire.</p></span>
+allowing this package to be extended by users in nearly any way they desire.</p>
 
 -------------------------------------------------------------------------------------------------------  
-<span style="font-size:300%;"><p align="center">INSTALLATION INSTRUCTIONS</p></span>
+<h1><p align="center">INSTALLATION INSTRUCTIONS</p></h1>
 
 -------------------------------------------------------------------------------------------------------  
 
@@ -38,7 +38,7 @@ allowing this package to be extended by users in nearly any way they desire.</p>
    "pip install dist/'*.whl'" 
 
 -------------------------------------------------------------------------------------------------------  
-<span style="font-size:300%;"><p align="center">DEPENDENCIES</p></span>
+<h1><p align="center">DEPENDENCIES</p></h1>
 
 -------------------------------------------------------------------------------------------------------  
 
@@ -64,11 +64,11 @@ REQUIRED FOR DFT COMPARISON
    - [py4vasp](https://www.vasp.at/py4vasp/latest/)
 
 ---------------------------------------------------------------------------------------------------------  
-<span style="font-size:300%;"><p align="center">REPORTING ISSUES</p></span>
+<h1><p align="center">REPORTING ISSUES</p></h1>
 
 ---------------------------------------------------------------------------------------------------------  
 
 Please report any issues to "https://github.com/pcross0405/PhRAMPT/issues"  
 
 -------------------------------------------------------------------------------------------------------------------------  
-<h1><p align="center">SEE SAMPLES DIRECTORY FOR AN EXAMPLE OF HOW TO RUN THE PACKAGE FROM A PYTHON SCRIPT</p></h1>
+<h1><p align="center">TUTORIAL</p></h1>
