@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------------------------------  
-</center # PhRAMPT OVERVIEW/>
+<span style="font-size:0.5em;"><p align="center">PhRAMPT OVERVIEW</p></span>
 
 -------------------------------------------------------------------------------------------------------  
 
@@ -18,6 +18,7 @@ allowing this package to be extended by users in nearly any way they desire.</p>
 
 -------------------------------------------------------------------------------------------------------  
 <span style="font-size:0.5em;"><p align="center">INSTALLATION INSTRUCTIONS</p></span>
+
 -------------------------------------------------------------------------------------------------------  
 
 1) Inside that directory type on the command line  
@@ -38,6 +39,7 @@ allowing this package to be extended by users in nearly any way they desire.</p>
 
 -------------------------------------------------------------------------------------------------------  
 <span style="font-size:0.5em;"><p align="center">DEPENDENCIES</p></span>
+
 -------------------------------------------------------------------------------------------------------  
 
 REQUIRED FOR CALCULATING PHONON FREQUENCIES
@@ -63,6 +65,7 @@ REQUIRED FOR DFT COMPARISON
 
 ---------------------------------------------------------------------------------------------------------  
 <span style="font-size:0.5em;"><p align="center">REPORTING ISSUES</p></span>
+
 ---------------------------------------------------------------------------------------------------------  
 
 Please report any issues to "https://github.com/pcross0405/PhRAMPT/issues"  
