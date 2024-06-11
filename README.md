@@ -13,6 +13,7 @@ using these packages.</p></span>
 in as little as 5 lines of Python script. What this package lacks in functionality it makes up for in
 ease of use. Further, extracting phonon frequencies for user customized post processing is made easy 
 allowing this package to be extended by users in nearly any way they desire.</p></span>
+
 -------------------------------------------------------------------------------------------------------  
 <span style="font-size:0.5em;"><p align="center">INSTALLATION INSTRUCTIONS</p></span>
 -------------------------------------------------------------------------------------------------------  
