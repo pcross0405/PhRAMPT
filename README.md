@@ -32,7 +32,7 @@ allowing this package to be extended by users in nearly any way they desire.</p>
 
 6) On the command line type  
    "pip install dist/'*.whl'" 
-
+   
 -------------------------------------------------------------------------------------------------------  
 <h1><p align="center">DEPENDENCIES</p></h1>
 
