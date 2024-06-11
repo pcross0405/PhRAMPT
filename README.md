@@ -11,7 +11,7 @@ using these packages.</p>
 
 <p align="justify">This package is designed to be very straightforward in its use, offering phonon dispersion 
 comparisons in as little as 5 lines of Python script. What this package lacks in functionality it makes up for in
-ease of use. Further, extracting phonon frequencies for user customized post processing is made easy 
+ease of use. Further, extracting phonon frequencies for user-customized post-processing has been made easy 
 allowing this package to be extended by users in nearly any way they desire.</p>
 
 -------------------------------------------------------------------------------------------------------  
@@ -44,7 +44,7 @@ REQUIRED FOR CALCULATING PHONON FREQUENCIES
 
 REQUIRED FOR PLOTTING
 
-   One of the following two can be used currently.
+> One of the following two can be used currently.
 
    - [matplotlib](https://matplotlib.org/)
 
@@ -52,15 +52,15 @@ REQUIRED FOR PLOTTING
 
 REQUIRED FOR DFT COMPARISON
 
-   Currently only comparsion with VASP is supported, further only VASP compiled with HDF5 support.
-   Comparisons using the VASP OUTCAR file and other DFT packages will come in future update.
+> Currently only comparsion with VASP is supported, further only VASP compiled with HDF5 support.
+> Comparisons using the VASP OUTCAR file and other DFT packages will come in future update.
 
    - [py4vasp](https://www.vasp.at/py4vasp/latest/)
 
 ---------------------------------------------------------------------------------------------------------  
 <h1><p align="center">REPORTING ISSUES</p></h1>
 
-Please report any issues to "https://github.com/pcross0405/PhRAMPT/issues"  
+Please report any issues [here](https://github.com/pcross0405/PhRAMPT/issues)  
 
 -------------------------------------------------------------------------------------------------------------------------  
 <h1><p align="center">TUTORIAL</p></h1>
