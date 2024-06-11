@@ -71,4 +71,4 @@ REQUIRED FOR DFT COMPARISON
 Please report any issues to "https://github.com/pcross0405/PhRAMPT/issues"  
 
 -------------------------------------------------------------------------------------------------------------------------  
-<h1 style="font-size:300%;"><p align="center">SEE SAMPLES DIRECTORY FOR AN EXAMPLE OF HOW TO RUN THE PACKAGE FROM A PYTHON SCRIPT</p></h1>
+<h1 style="font-size:150%;"><p align="center">SEE SAMPLES DIRECTORY FOR AN EXAMPLE OF HOW TO RUN THE PACKAGE FROM A PYTHON SCRIPT</p></h1>
