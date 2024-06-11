@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------------------------------  
-# PhRAMPT OVERVIEW
+</center # PhRAMPT OVERVIEW/>
 -------------------------------------------------------------------------------------------------------  
 
 <span><p align="justify">The Phonon Replication And Modeling/Plotting Tool (PhRAMPT) is a tool used assess the 
@@ -41,24 +41,24 @@ allowing this package to be extended by users in nearly any way they desire.</p>
 
 REQUIRED FOR CALCULATING PHONON FREQUENCIES
 
-   - lammps (the python module for LAMMPS)
+   - [lammps](https://docs.lammps.org/Python_module.html) (the python module for LAMMPS)
 
-   - numpy
+   - [numpy](https://numpy.org/)
 
 REQUIRED FOR PLOTTING
 
    One of the following two can be used currently.
 
-   - matplotlib
+   - [matplotlib](https://matplotlib.org/)
 
-   - plotly.express
+   - [plotly.express](https://plotly.com/python/plotly-express/)
 
 REQUIRED FOR DFT COMPARISON
 
    Currently only comparsion with VASP is supported, further only VASP compiled with HDF5 support.
    Comparisons using the VASP OUTCAR file and other DFT packages will come in future update.
 
-   - py4vasp
+   - [py4vasp](https://www.vasp.at/py4vasp/latest/)
 
 ---------------------------------------------------------------------------------------------------------  
 <span style="font-size:0.5em;"><p align="center">REPORTING ISSUES</p></span>
