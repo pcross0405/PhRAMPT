@@ -11,8 +11,25 @@ from lammps import lammps, LMP_STYLE_ATOM, LMP_TYPE_ARRAY, LMP_STYLE_GLOBAL, LMP
 
 # class for managing phonon calculation within LAMMPS
 class PhononManager:
+    '''
+    Class used to setup functionality for calculating phonons in LAMMPS
+    '''
 
     def __init__(self, in_file):
+        '''
+        Parameters
+        ----------
+        in_file : str
+            Name of the LAMMPS input file
+        klist : array
+            List of points that define reciprocal space path
+            Example for FCC: [[0.5, 0.5, 0.5], [0.0, 0.0, 0.0], [0.375, 0.375, 0.75], [0.5, 0.0, 0.5], [0.0, 0.0, 0.0], 'L', 'G', 'K', 'X', 'G']
+            Leave blank to sample all of brillouin zone
+        hkl : array
+            Determines how finely brillouin zone is sampled if klist is left blank
+        resolution : int
+            Determines how many points are calculated between reciprocal space path points
+        '''
 
         # create LAMMPS object
         self.lmp = lammps()
@@ -23,9 +40,8 @@ class PhononManager:
         # use LAMMPS run command to initialize energy
         self.lmp.command('run 0')
 
-        # replicate cell into 3x3x3 supercell
-        # identify centeral atoms that make up cell of interest
         # get box parameters for finding center atoms
+        # get total number of atoms
         self.lat_params = self.lmp.extract_box()
         self.natoms = self.lmp.get_natoms()
 
@@ -37,7 +53,7 @@ class PhononManager:
         self.dft_frequencies = None
 
         # list of reciprocal space points to sample
-        # can use phonon_manager.klist = 'all' to sample entire brillouin zone
+        # can use klist = 'all' to sample entire brillouin zone
         # h, k, and l define how finely brillouin zone is sampled when using 'all'
         # if h, k, or l remain None the fineness of that dimesion is automatically determined
         # see KPath method for more details on fineness determination
@@ -59,11 +75,11 @@ class PhononManager:
 
         elif units == 'real':
             self.displacement = 0.015
-            self.conversion = 1
+            self.conversion = None
 
         elif units == 'si':
             self.displacement = 1.5*10**(-12)
-            self.conversion = 1
+            self.conversion = None
 
         else:
             raise SystemExit(f'The {units} units style is not supported. Please change to metal, real, or si units.')
@@ -176,7 +192,6 @@ class PhononManager:
         interatomic_dists = {}
 
         # create empty lists for appending to later
-        # range counts from 1 since LAMMPS ids count from 1
         for atom1 in range(0, self.natoms):
             for atom2 in range(0, self.natoms):
                 force_constants[f'{atom2}_{atom1}'] = []
@@ -196,8 +211,7 @@ class PhononManager:
                 if other_atom == center_atom:
                     continue
 
-                # find interatomic distance for calculating 
-                # phonon frequencies later on
+                # find interatomic distance for calculating phonon frequencies later on
                 interatomic_dists = self.PairDist(other_atom, center_atom, interatomic_dists)
                 fcm = self.DispAtoms(other_atom, center_atom)
                 
@@ -208,20 +222,18 @@ class PhononManager:
         # force matrices between the same atoms are compute as the negative sum of the other force matrices
         force_on_self = 0
         count = 0
-        index1 = 0
-        index2 = 0
+        atom_num = 0
         for force_matrix in force_constants:
             force_on_self -= sum(force_constants[force_matrix])
             count += 1
 
             # once all force matrices between 1 atom and all other atoms are summed, append and redo for next atom
             if count == self.natoms:
-                force_constants[f'{index1}_{index2}'].append(force_on_self)
-                interatomic_dists[f'{index1}_{index2}'].append(np.array([0.0, 0.0, 0.0]))
+                force_constants[f'{atom_num}_{atom_num}'].append(force_on_self)
+                interatomic_dists[f'{atom_num}_{atom_num}'].append(np.array([0.0, 0.0, 0.0]))
                 force_on_self = 0
                 count = 0 
-                index1 += 1
-                index2 += 1
+                atom_num += 1
 
         return force_constants, interatomic_dists
 
@@ -383,7 +395,7 @@ class PhononManager:
 
     # method for interpolating frequencies after sampling entire brillouin zone
     # use this after calling obj.Calc() with default self.klist = 'all' to interpolate frequencies along any path
-    def Interpolate(self):
+    def Interpolate(self, kpath=None):
         pass
 
     #----------------------------------------------------------------------------------------------------------------#
@@ -415,6 +427,36 @@ class PhononManager:
         self, rgb=[0,0,0], title=None, xaxis=None, yaxis='Frequency (THz)', zeroline=False, zeroline_rgb=[1,0,0],
         file_name='phonon_dispersion.png', vgrid=True, vgrid_rgb=[0,0,0], hgrid=False, hgrid_rgb=[0,0,0], dpi=1000
     ):
+        '''
+        Method for plotting phonon frequencies with the matplotlib library
+
+        Parameters
+        ----------
+        rgb : array
+            Set color of phonon bands with rgb format
+        title : str
+            Set title of plot
+        xaxis : str
+            Set title of xaxis
+        yaxis : str
+            Set title of yaxis
+        zeroline : bool
+            Plots a line at y = 0
+        zeroline_rgb : array
+            Set color of zeroline with rgb format
+        file_name : str
+            Set name of output plot
+        vgrid : bool
+            Plots vertical lines at high symmetry points along reciprocal space path
+        vgrid_rgb : array
+            Sets color of vgrid lines with rgb format
+        hgrid : bool
+            Plots horizontal grid lines
+        hgrid_rgb : array
+            Sets color of hgrid lines with rgb format
+        dpi : int
+            Determines image resolution
+        '''
 
         import matplotlib.pyplot as plt
 
@@ -471,7 +513,15 @@ class PhononManager:
     #----------------------------------------------------------------------------------------------------------------#
 
     # method for saving calculation as binary
-    def SaveCalc(self, file_name='SaveState.pkl'):
+    def SaveCalc(self, file_name='SaveFile.pkl'):
+        '''
+        Method for saving frequencies and dynamical matrices of calculation to binary
+
+        Parameters
+        ----------
+        file_name : str
+            Sets name of binary to save
+        '''
 
         import pickle
 
@@ -485,6 +535,14 @@ class PhononManager:
 
     # method for loading dictionaries from previous calculation
     def LoadCalc(self, file_name='SaveState.pkl'):
+        '''
+        Method for loading frequencies and dynamical matrices of calculation from binary
+
+        Parameters
+        ----------
+        file_name : str
+            Name of binary to load
+        '''
 
         import pickle
 
@@ -505,6 +563,37 @@ class PhononManager:
 # this class will compute phonon frequencies by finding pairwise forces between displaced atoms
 # this method is faster, but requires a pairwise potential and will not work for multi-body potentials
 class Pairwise(PhononManager):
+    '''
+    This class will compute phonon frequencies by finding pairwise forces between displaced atoms.
+    This method is faster than the General class, but requires a pairwise potential and will not work for multi-body potentials.
+
+    Attributes
+    ----------
+    in_file : str
+        Name of the LAMMPS input file
+    klist : array
+        List of points that define reciprocal space path
+        Example for FCC: [[0.5, 0.5, 0.5], [0.0, 0.0, 0.0], [0.375, 0.375, 0.75], [0.5, 0.0, 0.5], [0.0, 0.0, 0.0], 'L', 'G', 'K', 'X', 'G']
+        Leave blank to sample all of brillouin zone
+    hkl : array
+        Determines how finely brillouin zone is sampled if klist is left blank
+    resolution : int
+        Determines how many points are calculated between reciprocal space path points
+
+    Methods
+    -------
+    Calc()
+        Calculates phonon frequencies after reading in LAMMPS input file
+    Plot_mpl(rgb=[0,0,0], title=None, xaxis=None, yaxis='Frequency (THz)', zeroline=False, zeroline_rgb=[1,0,0],
+    file_name='phonon_dispersion.png', vgrid=True, vgrid_rgb=[0,0,0], hgrid=False, hgrid_rgb=[0,0,0], dpi=1000)
+        Plots phonon frequencies along selected reciprocal space path
+    SaveCalc('SaveFile.pkl')
+        Saves frequencies and dynamical matrices to binary
+    LoadCalc('SaveFile.pkl)
+        Loads freqencies and dynamical matrices from binary
+    Interpolate(kpath=None)
+        Interpolates frequencies along any reciprocal space path if entire brillouin zone was sampled
+    '''
 
     # method for displacing atoms and fetching resulting potential energy
     def DispAtoms(self, atom1_id, atom2_id):
@@ -573,9 +662,38 @@ class Pairwise(PhononManager):
 #-------------------------------------------------- CLASS START -----------------------------------------------------#
 #--------------------------------------------------------------------------------------------------------------------#
 
-# this class will compute phonon frequencies by finding change in potential energy after displacing atoms
-# this method is slower, but will work with any potential including multi-body potentials
 class General(PhononManager):
+    '''
+    This class will compute phonon frequencies by finding the change in potential energy after displacing atoms.
+    This method is slower than the Pairwise method but will work with any potential, including multi-body potentials.
+
+    Attributes
+    ----------
+    in_file : str
+        Name of the LAMMPS input file
+    klist : array
+        List of points that define reciprocal space path
+        Example for FCC: [[0.5, 0.5, 0.5], [0.0, 0.0, 0.0], [0.375, 0.375, 0.75], [0.5, 0.0, 0.5], [0.0, 0.0, 0.0], 'L', 'G', 'K', 'X', 'G']
+        Leave blank to sample all of brillouin zone
+    hkl : array
+        Determines how finely brillouin zone is sampled if klist is left blank
+    resolution : int
+        Determines how many points are calculated between reciprocal space path points
+
+    Methods
+    -------
+    Calc()
+        Calculates phonon frequencies after reading in LAMMPS input file
+    Plot_mpl(rgb=[0,0,0], title=None, xaxis=None, yaxis='Frequency (THz)', zeroline=False, zeroline_rgb=[1,0,0],
+    file_name='phonon_dispersion.png', vgrid=True, vgrid_rgb=[0,0,0], hgrid=False, hgrid_rgb=[0,0,0], dpi=1000)
+        Plots phonon frequencies along selected reciprocal space path
+    SaveCalc('SaveFile.pkl')
+        Saves frequencies and dynamical matrices to binary
+    LoadCalc('SaveFile.pkl)
+        Loads freqencies and dynamical matrices from binary
+    Interpolate(kpath=None)
+        Interpolates frequencies along any reciprocal space path if entire brillouin zone was sampled
+    '''
 
     # method for displacing atoms and fetching resulting potential energy
     def DispAtom2(self):
