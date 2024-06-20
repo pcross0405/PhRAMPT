@@ -1,6 +1,6 @@
-#----------------------------------------------------------------------------------------------------------------#
-#---------------- Tool for comparing machine-learned potential phonon plots to DFT phonon plots -----------------#
-#----------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------------------------------------------------------------------------#
+#----------------- Tool for comparing machine-learned potential phonon plots to DFT phonon plots -------------------#
+#-------------------------------------------------------------------------------------------------------------------#
 
 import numpy as np
 from lammps import lammps, LMP_STYLE_ATOM, LMP_TYPE_ARRAY, LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR
@@ -29,25 +29,27 @@ class PhononManager:
             Determines how finely brillouin zone is sampled if klist is left blank
         resolution : int
             Determines how many points are calculated between reciprocal space path points
+        symmetry : bool
+            Determines whether calculation considers symmetry or not
         '''
 
         # create LAMMPS object
-        self.lmp = lammps()
+        self._lmp = lammps()
 
         # load LAMMPS in_file
-        self.lmp.file(in_file)
+        self._lmp.file(in_file)
 
         # use LAMMPS run command to initialize energy
-        self.lmp.command('run 0')
+        self._lmp.command('run 0')
 
         # get box parameters for finding center atoms
         # get total number of atoms
-        self.lat_params = self.lmp.extract_box()
-        self.natoms = self.lmp.get_natoms()
+        self._lat_params = self._lmp.extract_box()
+        self._natoms = self._lmp.get_natoms()
 
         # create dictionaries for tracking atom information
-        self.all_info = {}
-        self.center_info = {}
+        self._all_info = {}
+        self._center_info = {}
         self.d_matrices = {}
         self.frequencies = {}
         self.dft_frequencies = None
@@ -59,27 +61,29 @@ class PhononManager:
         # see KPath method for more details on fineness determination
         self.klist = 'all'
         self.hkl = None
-        self.hi_sym_pts = None
-        self.knames = []
+        self._hi_sym_pts = None
+        self._knames = []
 
         # initialize variables needed for phonon calc
         # displacement is amount atoms are displaced in angstroms
         # resolution is the number of points interpolated between reciprocal space points
-        # conversion is a conversion factor for plotting frequencies in units of THz
+        # _conversion is a _conversion factor for plotting frequencies in units of THz
+        # symmetry determines whether calculation is made using symmetry or not
+        self.symmetry = True
         self.resolution = 100
 
-        units = self.lmp.extract_global('units')
+        units = self._lmp.extract_global('units')
         if units == 'metal':
             self.displacement = 0.015
-            self.conversion = 1.6021773/6.022142*10**3
+            self._conversion = 1.6021773/6.022142*10**3
 
         elif units == 'real':
             self.displacement = 0.015
-            self.conversion = None
+            self._conversion = None
 
         elif units == 'si':
             self.displacement = 1.5*10**(-12)
-            self.conversion = None
+            self._conversion = None
 
         else:
             raise SystemExit(f'The {units} units style is not supported. Please change to metal, real, or si units.')
@@ -88,7 +92,7 @@ class PhononManager:
         # add gap between atoms and simulation boundary and make boundary nonperiodic
         # this prevents atoms from moving through the boundary since that changes the
         # interatomic distance which is needed for accurate dispersion
-        self.lmp.commands_string(f'''
+        self._lmp.commands_string(f'''
             replicate 3 3 3
             change_box all &
             x delta {-0.5} {0.5} &
@@ -103,21 +107,21 @@ class PhononManager:
         # first layer of 3x3x3 has 9 cells
         # second layer has center cell at the fifth unit cell replication, so 14 cells to get to center
         for i in range(13*self.natoms + 1, 14*self.natoms + 1):
-            self.lmp.command(f'group CenterAtoms id {i}')
+            self._lmp.command(f'group CenterAtoms id {i}')
 
         # fetch information from all atoms and centeral atoms
-        self.lmp.commands_string('''
+        self._lmp.commands_string('''
             compute CenterInfo CenterAtoms property/atom id type mass
             compute AllInfo all property/atom id type mass
             run 0
             ''')
         
         # extract compute information from LAMMPS into numpy arrays
-        center_array = self.lmp.numpy.extract_compute('CenterInfo', LMP_STYLE_ATOM, LMP_TYPE_ARRAY).astype(np.float64)
-        all_array = self.lmp.numpy.extract_compute('AllInfo', LMP_STYLE_ATOM, LMP_TYPE_ARRAY).astype(np.float64)
+        center_array = self._lmp.numpy.extract_compute('CenterInfo', LMP_STYLE_ATOM, LMP_TYPE_ARRAY).astype(np.float64)
+        all_array = self._lmp.numpy.extract_compute('AllInfo', LMP_STYLE_ATOM, LMP_TYPE_ARRAY).astype(np.float64)
 
         # clean up before proceeding
-        self.lmp.commands_string('''
+        self._lmp.commands_string('''
             uncompute CenterInfo
             uncompute AllInfo
             group CenterAtoms delete
@@ -130,10 +134,10 @@ class PhononManager:
             # ignore those atoms by skipping when atom id == 0
             # subtract one since LAMMPS indexes IDs from 1 
             if int(i[0]) != 0:
-                self.center_info[f'{(int(i[0]) - 1)}'] = [i[1], i[2]]
+                self._center_info[f'{(int(i[0]) - 1)}'] = [i[1], i[2]]
 
         for i in all_array:
-            self.all_info[f'{int(i[0]) - 1}'] = [i[1], i[2]]
+            self._all_info[f'{int(i[0]) - 1}'] = [i[1], i[2]]
 
         # there are 3 times the number of atoms of branches in phonon dispersion
         for branch in range(0, 3*self.natoms):
@@ -161,14 +165,14 @@ class PhononManager:
 
         # find interatomic distances which are required later for calculating phonon frequencies
         # get list of all atom ids, subtract one since LAMMPS indexes IDs from 1
-        ids = list(self.lmp.numpy.extract_atom('id').astype(np.float64) - 1)
+        ids = list(self._lmp.numpy.extract_atom('id').astype(np.float64) - 1)
 
         # find index of each both atoms in the id list
         index1 = ids.index(int(center_atom))
         index2 = ids.index(int(other_atom))
 
         # get list of all atom coordinates
-        positions = list(self.lmp.numpy.extract_atom('x').astype(np.float64))
+        positions = list(self._lmp.numpy.extract_atom('x').astype(np.float64))
 
         # get coordinates of both atoms using indices from id list
         atom1_coord = positions[index1]
@@ -199,11 +203,11 @@ class PhononManager:
 
         # modulos are used to append force constant matrices to correct list in dictionary
         # loop for displacing center atoms
-        for center_atom in self.center_info:
+        for center_atom in self._center_info:
             atom1 = int(center_atom) % self.natoms
 
             # loop for displacing all atoms
-            for other_atom in self.all_info:
+            for other_atom in self._all_info:
                 atom2 = int(other_atom) % self.natoms
 
                 # if atoms are the same, skip
@@ -274,7 +278,7 @@ class PhononManager:
                 self.klist[i] = q[0]*b1 + q[1]*b2 + q[2]*b3
 
             # save high symmetry points for plotting later
-            self.hi_sym_pts = self.klist
+            self._hi_sym_pts = self.klist
             self.klist = np.concatenate(self.klist)
         
         # if something other than 'all' is provided, then interpolate given path
@@ -283,7 +287,7 @@ class PhononManager:
             # get kpoint labels from klist
             for i, k_label in enumerate(self.klist):
                 if i >= len(self.klist)/2:
-                    self.knames.append(k_label)
+                    self._knames.append(k_label)
 
             # clean up klist by removing labels
             del self.klist[int(len(self.klist)/2):]
@@ -293,7 +297,7 @@ class PhononManager:
                 self.klist[i] = q[0]*b1 + q[1]*b2 + q[2]*b3
             
             # save high symmetry points for plotting later
-            self.hi_sym_pts = self.klist
+            self._hi_sym_pts = self.klist
 
             # interpolate reciprocal space path
             # list is for adding interpolated points to
@@ -352,8 +356,8 @@ class PhononManager:
                 index2 = int(i.split('_')[1]) 
 
                 # grab masses of each atom
-                mass1 = self.all_info[f'{index1}'][1]
-                mass2 = self.all_info[f'{index2}'][1]
+                mass1 = self._all_info[f'{index1}'][1]
+                mass2 = self._all_info[f'{index2}'][1]
 
                 # compute elements of the dynamical matrix
                 d_elements = (1/np.sqrt(mass1*mass2))*sum(summation_list)
@@ -377,10 +381,10 @@ class PhononManager:
             # organize frequencies into respective branch
             for branch, freq in enumerate(freq_vals):
                 if freq < 0:
-                    freq_vals[branch] = -1*np.sqrt(-1*freq*self.conversion)
+                    freq_vals[branch] = -1*np.sqrt(-1*freq*self._conversion)
                     self.frequencies[f'{branch}'].append(freq_vals[branch])
                 else:
-                    freq_vals[branch] = np.sqrt(freq*self.conversion)
+                    freq_vals[branch] = np.sqrt(freq*self._conversion)
                     self.frequencies[f'{branch}'].append(freq_vals[branch])
 
     #----------------------------------------------------------------------------------------------------------------#
@@ -469,11 +473,11 @@ class PhononManager:
         # add high symmetry point labels to plot        
         x_vals = []
         kpoints = self.klist.tolist()
-        for q_point in self.hi_sym_pts:
+        for q_point in self._hi_sym_pts:
             ind = kpoints.index(q_point.tolist())
             x_vals.append(ind/len(self.klist))
             kpoints[ind] = None
-        plt.xticks(ticks=x_vals, labels=self.knames)
+        plt.xticks(ticks=x_vals, labels=self._knames)
         
         # functionality for plotting vertical lines at all high symmetry points
         if vgrid == True:
@@ -601,7 +605,7 @@ class Pairwise(PhononManager):
         # create LAMMPS group for atoms 1 and 2
         # add back 1 since it was removed earlier to match 0 based indexing of python
         # setup compute that reports the interatomic forces
-        self.lmp.commands_string(f'''
+        self._lmp.commands_string(f'''
             group Atom1 id {int(atom1_id) + 1}
             group Atom2 id {int(atom2_id) + 1}
             compute Forces Atom2 group/group Atom1
@@ -622,31 +626,31 @@ class Pairwise(PhononManager):
             disp1[(i + 2) % 3] = disp1[(i + 1) % 3]
 
             # displace atom1 in positive direction
-            self.lmp.commands_string(f'''
+            self._lmp.commands_string(f'''
                 displace_atoms Atom1 move {disp1[0]} {disp1[1]} {disp1[2]}
                 run 0
                 ''')
             
             # find interatomic forces after displacement
-            positive_disp_forces = self.lmp.numpy.extract_compute('Forces', LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR).astype(np.float64)
+            positive_disp_forces = self._lmp.numpy.extract_compute('Forces', LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR).astype(np.float64)
 
             # displace atom1 in negative direction
-            self.lmp.commands_string(f'''
+            self._lmp.commands_string(f'''
                 displace_atoms Atom1 move {-2*disp1[0]} {-2*disp1[1]} {-2*disp1[2]}
                 run 0 
                 ''')
 
             # find interatomic forces after displacement
-            negative_disp_forces = self.lmp.numpy.extract_compute('Forces', LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR).astype(np.float64)
+            negative_disp_forces = self._lmp.numpy.extract_compute('Forces', LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR).astype(np.float64)
 
             # update force constant matrix
             fcm[i,:] = -(1/(2*self.displacement))*(positive_disp_forces - negative_disp_forces)
 
             # move atom1 back to equilibrium position
-            self.lmp.command(f'displace_atoms Atom1 move {disp1[0]} {disp1[1]} {disp1[2]}')
+            self._lmp.command(f'displace_atoms Atom1 move {disp1[0]} {disp1[1]} {disp1[2]}')
 
         # clean up before proceeding
-        self.lmp.commands_string('''
+        self._lmp.commands_string('''
             uncompute Forces
             group Atom1 delete                     
             group Atom2 delete
@@ -712,28 +716,28 @@ class General(PhononManager):
             disp[(i + 2) % 3] = disp[(i + 1) % 3]
 
             # displace atom2 in positive direction
-            self.lmp.commands_string(f'''
+            self._lmp.commands_string(f'''
                 displace_atoms Atom2 move {disp[0]} {disp[1]} {disp[2]}
                 run 0
                 ''')
             
             # find potential energy after displacement
-            positive_disp_energy = self.lmp.get_thermo('pe')
+            positive_disp_energy = self._lmp.get_thermo('pe')
 
             # displace atom2 in negative direction
-            self.lmp.commands_string(f'''
+            self._lmp.commands_string(f'''
                 displace_atoms Atom2 move {-2*disp[0]} {-2*disp[1]} {-2*disp[2]}
                 run 0 
                 ''')
 
             # find potential energy after displacement
-            negative_disp_energy = self.lmp.get_thermo('pe')
+            negative_disp_energy = self._lmp.get_thermo('pe')
 
             # update force constant matrix
             force_vec[i] = -(1/(2*self.displacement))*(positive_disp_energy - negative_disp_energy)
 
             # move atom2 back to equilibrium position
-            self.lmp.command(f'displace_atoms Atom2 move {disp[0]} {disp[1]} {disp[2]}')
+            self._lmp.command(f'displace_atoms Atom2 move {disp[0]} {disp[1]} {disp[2]}')
 
         return force_vec
     
@@ -745,7 +749,7 @@ class General(PhononManager):
         # create LAMMPS group for atoms 1 and 2
         # add back 1 since it was removed earlier to match 0 based indexing of python
         # setup compute that reports the interatomic forces
-        self.lmp.commands_string(f'''
+        self._lmp.commands_string(f'''
             group Atom1 id {int(atom1_id) + 1}
             group Atom2 id {int(atom2_id) + 1}
             run 0 
@@ -765,7 +769,7 @@ class General(PhononManager):
             disp[(i + 2) % 3] = disp[(i + 1) % 3]
 
             # displace atom1 in positive direction
-            self.lmp.commands_string(f'''
+            self._lmp.commands_string(f'''
                 displace_atoms Atom1 move {disp[0]} {disp[1]} {disp[2]}
                 run 0
                 ''')
@@ -774,7 +778,7 @@ class General(PhononManager):
             positive_disp_forces = self.DispAtom2()
 
             # displace atom1 in negative direction
-            self.lmp.commands_string(f'''
+            self._lmp.commands_string(f'''
                 displace_atoms Atom1 move {-2*disp[0]} {-2*disp[1]} {-2*disp[2]}
                 run 0 
                 ''')
@@ -786,10 +790,10 @@ class General(PhononManager):
             fcm[i,:] = -(1/(2*self.displacement))*(positive_disp_forces - negative_disp_forces)
 
             # move atom1 back to equilibrium position
-            self.lmp.command(f'displace_atoms Atom1 move {disp[0]} {disp[1]} {disp[2]}')
+            self._lmp.command(f'displace_atoms Atom1 move {disp[0]} {disp[1]} {disp[2]}')
 
         # clean up before proceeding
-        self.lmp.commands_string('''
+        self._lmp.commands_string('''
             group Atom1 delete                     
             group Atom2 delete
             ''')
