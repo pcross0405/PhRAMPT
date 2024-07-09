@@ -67,10 +67,12 @@ class PhononManager:
         # initialize variables needed for phonon calc
         # displacement is amount atoms are displaced in angstroms
         # resolution is the number of points interpolated between reciprocal space points
+        # parallel determines whether the calculation is done in parallel or serial
         # _conversion is a _conversion factor for plotting frequencies in units of THz
         # symmetry determines whether calculation is made using symmetry or not
         self.symmetry = True
         self.resolution = 100
+        self.parallel = False
 
         units = self._lmp.extract_global('units')
         if units == 'metal':
@@ -392,8 +394,13 @@ class PhononManager:
     # method that serves as shortcut for calling methods needed for calculating frequencies
     def Calc(self):
 
-        self.CDM()
-        self.F3P()
+        if self.parallel == True:
+            from parallel_phrampt import parallel_Calc
+            parallel_Calc()
+
+        else:
+            self.CDM()
+            self.F3P()
 
     #----------------------------------------------------------------------------------------------------------------#
 
