@@ -52,8 +52,8 @@ REQUIRED FOR PLOTTING
 
 REQUIRED FOR DFT COMPARISON
 
-> Currently only comparsion with VASP is supported, further only VASP compiled with HDF5 support.
-> Comparisons using the VASP OUTCAR file and other DFT packages will come in future update.
+> Currently only comparsion with VASP is supported, further, only VASP compiled with HDF5 support.
+> Comparisons using the VASP OUTCAR file and other DFT packages will come in future updates.
 
    - [py4vasp](https://www.vasp.at/py4vasp/latest/)
 
