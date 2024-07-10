@@ -32,6 +32,7 @@ class PhononManager:
         symmetry : bool
             Determines whether calculation considers symmetry or not
         '''
+        self._infile = in_file
 
         # create LAMMPS object
         self._lmp = lammps()
@@ -395,8 +396,8 @@ class PhononManager:
     def Calc(self):
 
         if self.parallel == True:
-            from parallel_phrampt import parallel_Calc
-            parallel_Calc()
+            from parallel_phrampt import make_parallel
+            make_parallel(self._infile, self._natoms)
 
         else:
             self.CDM()
