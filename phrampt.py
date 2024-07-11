@@ -109,7 +109,7 @@ class PhononManager:
         # LAMMPS replicates cells one layer at a time
         # first layer of 3x3x3 has 9 cells
         # second layer has center cell at the fifth unit cell replication, so 14 cells to get to center
-        for i in range(13*self.natoms + 1, 14*self.natoms + 1):
+        for i in range(13*self._natoms + 1, 14*self._natoms + 1):
             self._lmp.command(f'group CenterAtoms id {i}')
 
         # fetch information from all atoms and centeral atoms
@@ -143,7 +143,7 @@ class PhononManager:
             self._all_info[f'{int(i[0]) - 1}'] = [i[1], i[2]]
 
         # there are 3 times the number of atoms of branches in phonon dispersion
-        for branch in range(0, 3*self.natoms):
+        for branch in range(0, 3*self._natoms):
             self.frequencies[f'{branch}'] = []
 
     #----------------------------------------------------------------------------------------------------------------#
@@ -163,8 +163,8 @@ class PhononManager:
     def PairDist(self, other_atom, center_atom, interatomic_dists):
 
         # use modulo to append distance to correct list in dictionary
-        atom1 = int(center_atom) % self.natoms
-        atom2 = int(other_atom) % self.natoms
+        atom1 = int(center_atom) % self._natoms
+        atom2 = int(other_atom) % self._natoms
 
         # find interatomic distances which are required later for calculating phonon frequencies
         # get list of all atom ids, subtract one since LAMMPS indexes IDs from 1
@@ -199,19 +199,19 @@ class PhononManager:
         interatomic_dists = {}
 
         # create empty lists for appending to later
-        for atom1 in range(0, self.natoms):
-            for atom2 in range(0, self.natoms):
+        for atom1 in range(0, self._natoms):
+            for atom2 in range(0, self._natoms):
                 force_constants[f'{atom2}_{atom1}'] = []
                 interatomic_dists[f'{atom2}_{atom1}'] = []
 
         # modulos are used to append force constant matrices to correct list in dictionary
         # loop for displacing center atoms
         for center_atom in self._center_info:
-            atom1 = int(center_atom) % self.natoms
+            atom1 = int(center_atom) % self._natoms
 
             # loop for displacing all atoms
             for other_atom in self._all_info:
-                atom2 = int(other_atom) % self.natoms
+                atom2 = int(other_atom) % self._natoms
 
                 # if atoms are the same, skip
                 # self interaction is evaluated later
@@ -235,7 +235,7 @@ class PhononManager:
             count += 1
 
             # once all force matrices between 1 atom and all other atoms are summed, append and redo for next atom
-            if count == self.natoms:
+            if count == self._natoms:
                 force_constants[f'{atom_num}_{atom_num}'].append(force_on_self)
                 interatomic_dists[f'{atom_num}_{atom_num}'].append(np.array([0.0, 0.0, 0.0]))
                 force_on_self = 0
@@ -250,9 +250,9 @@ class PhononManager:
     def KPath(self):
 
         # create variables for real space lattice vectors
-        a = np.array([self.lat_params[1][0] - self.lat_params[0][0], 0.0, 0.0])
-        b = np.array([self.lat_params[2], self.lat_params[1][1] - self.lat_params[0][1], 0.0])
-        c = np.array([self.lat_params[4], self.lat_params[3], self.lat_params[1][2] - self.lat_params[0][2]])
+        a = np.array([self._lat_params[1][0] - self._lat_params[0][0], 0.0, 0.0])
+        b = np.array([self._lat_params[2], self._lat_params[1][1] - self._lat_params[0][1], 0.0])
+        c = np.array([self._lat_params[4], self._lat_params[3], self._lat_params[1][2] - self._lat_params[0][2]])
 
         # find reciprocal lattice vectors
         b1 = 2*np.pi*(np.cross(b,c))/np.dot(a,np.cross(b,c))
@@ -339,7 +339,7 @@ class PhononManager:
         for q_val in self.klist:
 
             # construct a dynamical matrix for each q point
-            self.d_matrices[f'{q_val}'] = np.zeros((3*self.natoms, 3*self.natoms), dtype = complex)
+            self.d_matrices[f'{q_val}'] = np.zeros((3*self._natoms, 3*self._natoms), dtype = complex)
 
             # loop over force constant dictionary
             for i in force_constants:
@@ -366,8 +366,8 @@ class PhononManager:
                 d_elements = (1/np.sqrt(mass1*mass2))*sum(summation_list)
 
                 # update dynamical matrix with elements
-                i1 = index1 % self.natoms
-                i2 = index2 % self.natoms
+                i1 = index1 % self._natoms
+                i2 = index2 % self._natoms
                 self.d_matrices[f'{q_val}'][3*(i1):3*(i1)+3, 3*(i2):3*(i2)+3] = d_elements
 
     #----------------------------------------------------------------------------------------------------------------#
