@@ -1,7 +1,7 @@
 import multiprocessing as mp
 from collections import Counter
 import os
-from phrampt import General, Pairwise
+from phrampt_tools import General, Pairwise
 
 #----------------------------------------------------------------------------------------------------------------#
 
