@@ -31,7 +31,7 @@ allowing this package to be extended by users in nearly any way they desire.</p>
 5) This should create a "dist" directory with a .whl file inside
 
 6) On the command line type  
-   "pip install dist/'*.whl'" 
+   "pip install dist/*.whl" 
    
 -------------------------------------------------------------------------------------------------------  
 <h1><p align="center">DEPENDENCIES</p></h1>
