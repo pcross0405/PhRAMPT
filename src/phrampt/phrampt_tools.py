@@ -611,8 +611,8 @@ class Pairwise(PhononManager):
     def Calc(self):
 
         if self.parallel == True:
-            from parallel_phrampt import make_parallel
-            self.d_matrices = make_parallel(self._infile, self._natoms, 'pairwise', self.klist, self.hkl, 
+            from . import parallel_phrampt as pp
+            self.d_matrices = pp.make_parallel(self._infile, self._natoms, 'pairwise', self.klist, self.hkl, 
                                             self.resolution)
             self.F3P()
 
@@ -730,8 +730,8 @@ class General(PhononManager):
     def Calc(self):
 
         if self.parallel == True:
-            from parallel_phrampt import make_parallel
-            self.d_matrices = make_parallel(self._infile, self._natoms, 'general', self.klist, self.hkl, 
+            from . import parallel_phrampt as pp
+            self.d_matrices = pp.make_parallel(self._infile, self._natoms, 'general', self.klist, self.hkl, 
                                             self.resolution)
             self.F3P()
 
