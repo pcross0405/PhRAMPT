@@ -1,7 +1,7 @@
 import multiprocessing as mp
 from collections import Counter
 import os
-from phrampt_tools import General, Pairwise
+from . import phrampt_tools as pt
 
 #----------------------------------------------------------------------------------------------------------------#
 
@@ -28,10 +28,10 @@ def parallel_Calc(in_file, proc_num, proc_list, methodname, klist, hkl, resoluti
 
     # identify which displacement method is calling this function
     if methodname == 'pairwise':
-        new_calc = Pairwise(in_file)
+        new_calc = pt.Pairwise(in_file)
     
     elif methodname == 'general':
-        new_calc = General(in_file)
+        new_calc = pt.General(in_file)
 
     else:
         raise SystemExit('Parallel calculation is unable to identify displacement method, please report this!')
