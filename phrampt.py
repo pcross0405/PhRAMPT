@@ -395,13 +395,9 @@ class PhononManager:
     # method that serves as shortcut for calling methods needed for calculating frequencies
     def Calc(self):
 
-        if self.parallel == True:
-            from parallel_phrampt import make_parallel
-            make_parallel(self._infile, self._natoms)
-
-        else:
-            self.CDM()
-            self.F3P()
+        # this method will be overwritten by subclasses
+        # see subclasses at the bottom of the script
+        pass
 
     #----------------------------------------------------------------------------------------------------------------#
 
@@ -607,6 +603,23 @@ class Pairwise(PhononManager):
         Interpolates frequencies along any reciprocal space path if entire brillouin zone was sampled
     '''
 
+    #----------------------------------------------------------------------------------------------------------------#
+    #----------------------------------------------------- METHODS --------------------------------------------------#
+    #----------------------------------------------------------------------------------------------------------------#  
+
+    # method that serves as shortcut for calling methods needed for calculating frequencies
+    def Calc(self):
+
+        if self.parallel == True:
+            from parallel_phrampt import make_parallel
+            make_parallel(self._infile, self._natoms, 'pairwise')
+
+        else:
+            self.CDM()
+            self.F3P()
+
+    #----------------------------------------------------------------------------------------------------------------# 
+
     # method for displacing atoms and fetching resulting potential energy
     def DispAtoms(self, atom1_id, atom2_id):
 
@@ -706,6 +719,23 @@ class General(PhononManager):
     Interpolate(kpath=None)
         Interpolates frequencies along any reciprocal space path if entire brillouin zone was sampled
     '''
+
+    #----------------------------------------------------------------------------------------------------------------#
+    #----------------------------------------------------- METHODS --------------------------------------------------#
+    #----------------------------------------------------------------------------------------------------------------# 
+
+    # method that serves as shortcut for calling methods needed for calculating frequencies
+    def Calc(self):
+
+        if self.parallel == True:
+            from parallel_phrampt import make_parallel
+            make_parallel(self._infile, self._natoms, 'general')
+
+        else:
+            self.CDM()
+            self.F3P()
+
+    #----------------------------------------------------------------------------------------------------------------# 
 
     # method for displacing atoms and fetching resulting potential energy
     def DispAtom2(self):
