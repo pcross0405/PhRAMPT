@@ -57,6 +57,9 @@ def parallel_Calc(in_file, proc_num, proc_list, methodname, klist, hkl, resoluti
     # calculate dynamical matrices for assigned atoms
     new_calc.CDM()
 
+    # close lammps after calculation finishes
+    new_calc._lmp.close()
+
     return new_calc.d_matrices
 
 #----------------------------------------------------------------------------------------------------------------#
@@ -83,13 +86,13 @@ def make_parallel(in_file, natoms, methodname, klist, hkl, resolution):
     pool = mp.Pool(processes=procs)
 
     # setup arguments
-    arg1 = [in_file for i in range(procs)]
+    arg1 = [in_file for _ in range(procs)]
     arg2 = [*range(procs)]
     arg3 = assign_atoms(natoms, procs)
-    arg4 = [methodname for i in range(procs)]
-    arg5 = [klist for i in range(procs)]
-    arg6 = [hkl for i in range(procs)]
-    arg7 = [resolution for i in range(procs)]
+    arg4 = [methodname for _ in range(procs)]
+    arg5 = [klist for _ in range(procs)]
+    arg6 = [hkl for _ in range(procs)]
+    arg7 = [resolution for _ in range(procs)]
     args = [*zip(arg1, arg2, arg3, arg4, arg5, arg6, arg7)]
 
     # submit arguments to pool jobs
