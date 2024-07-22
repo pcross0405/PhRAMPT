@@ -12,7 +12,7 @@ def assign_atoms(natoms, procs):
     atoms_per_proc = round(natoms/procs + 0.5)
 
     # create list of atoms per processor
-    proc_list = [atoms_per_proc for i in range(procs)]
+    proc_list = [atoms_per_proc for _ in range(procs)]
 
     # since we round up, likely to have more atoms per processor than atoms in simulation
     # remove 1 atom from each processor necessary so that sum(proc_list) == natoms
@@ -48,8 +48,9 @@ def parallel_Calc(in_file, proc_num, proc_list, methodname, klist, hkl, resoluti
 
     # temporary dictionary for reassigning center_info dictionary
     center_info_temp = {}
-    for i in range(total_atoms, total_atoms + proc_list[proc_num]):
-        center_info_temp[f'{int(i)}'] = new_calc._center_info[f'{int(i)}']
+    for i, j in enumerate(new_calc._center_info):
+        if i in range(total_atoms, total_atoms + proc_list[proc_num]):
+            center_info_temp[j] = new_calc._center_info[j]
     
     # reassign center_info dictionary
     new_calc._center_info = center_info_temp
@@ -83,12 +84,13 @@ def make_parallel(in_file, natoms, methodname, klist, hkl, resolution):
                         Rerun with more processors or run as a serial calculation.''')
 
     # create pool
-    pool = mp.Pool(processes=procs)
+    pool = mp.get_context('spawn').Pool(processes=procs)
 
     # setup arguments
     arg1 = [in_file for _ in range(procs)]
     arg2 = [*range(procs)]
-    arg3 = assign_atoms(natoms, procs)
+    proc_list = assign_atoms(natoms, procs)
+    arg3 = [proc_list for _ in range(procs)]
     arg4 = [methodname for _ in range(procs)]
     arg5 = [klist for _ in range(procs)]
     arg6 = [hkl for _ in range(procs)]
@@ -103,4 +105,6 @@ def make_parallel(in_file, natoms, methodname, klist, hkl, resolution):
     for d_matrix_dict in calc_output:
         total_output.update(d_matrix_dict)
 
+    # close pool before returning parallel calc
+    pool.close()
     return dict(total_output)
