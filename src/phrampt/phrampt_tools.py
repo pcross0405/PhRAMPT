@@ -185,7 +185,7 @@ class PhononManager:
         dist_comps = atom2_coord - atom1_coord
 
         # update interatomic distances dictionary
-        interatomic_dists[f'{atom2}_{atom1}'].append(dist_comps)
+        interatomic_dists[f'{atom2}_{atom1}'][int(other_atom) % 27] = dist_comps
         
         return interatomic_dists
     
@@ -201,8 +201,8 @@ class PhononManager:
         # create empty lists for appending to later
         for atom1 in range(0, self._natoms):
             for atom2 in range(0, self._natoms):
-                force_constants[f'{atom2}_{atom1}'] = []
-                interatomic_dists[f'{atom2}_{atom1}'] = []
+                force_constants[f'{atom2}_{atom1}'] = [np.zeros((3,3)) for _ in range(27)]
+                interatomic_dists[f'{atom2}_{atom1}'] = [np.zeros(3) for _ in range(27)]
 
         # modulos are used to append force constant matrices to correct list in dictionary
         # loop for displacing center atoms
@@ -223,7 +223,7 @@ class PhononManager:
                 fcm = self.DispAtoms(other_atom, center_atom)
                 
                 # store force constant matrix (fcm) in force constants dictionary
-                force_constants[f'{atom2}_{atom1}'].append(fcm)
+                force_constants[f'{atom2}_{atom1}'][int(other_atom) % 27] = fcm
 
         # compute self interaction according to acoustic sum rule
         # force matrices between the same atoms are compute as the negative sum of the other force matrices
@@ -237,7 +237,7 @@ class PhononManager:
             # once all force matrices between 1 atom and all other atoms are summed, append and redo for next atom
             if count == self._natoms:
                 force_constants[f'{atom_num}_{atom_num}'].append(force_on_self)
-                interatomic_dists[f'{atom_num}_{atom_num}'].append(np.array([0.0, 0.0, 0.0]))
+                interatomic_dists[f'{atom_num}_{atom_num}'].append(np.zeros(3))
                 force_on_self = 0
                 count = 0 
                 atom_num += 1
@@ -394,7 +394,7 @@ class PhononManager:
 
     # method that serves as shortcut for calling methods needed for calculating frequencies
     def Calc(self):
-
+    
         # this method will be overwritten by subclasses
         # see subclasses at the bottom of the script
         pass
@@ -533,16 +533,18 @@ class PhononManager:
 
         import pickle
 
-        # print binaries to file that can be loaded later
+        # print calculation info to file that can be loaded later
         with open(file_name, 'wb') as f:
             pickle.dump(self.klist, f)
+            pickle.dump(self._hi_sym_pts, f)
+            pickle.dump(self._knames, f) 
             pickle.dump(self.d_matrices, f)
             pickle.dump(self.frequencies, f)
 
     #----------------------------------------------------------------------------------------------------------------#
 
     # method for loading dictionaries from previous calculation
-    def LoadCalc(self, file_name='SaveState.pkl'):
+    def LoadCalc(self, file_name='SaveFile.pkl'):
         '''
         Method for loading frequencies and dynamical matrices of calculation from binary
 
@@ -557,6 +559,8 @@ class PhononManager:
         # read in binary and reset previous attributes to current ones
         with open(file_name, 'rb') as f:
             self.klist = pickle.load(f)
+            self._hi_sym_pts = pickle.load(f)
+            self._knames = pickle.load(f)
             self.d_matrices = pickle.load(f)
             self.frequencies = pickle.load(f)
 
@@ -614,6 +618,7 @@ class Pairwise(PhononManager):
             from . import parallel_phrampt as pp
             self.d_matrices = pp.make_parallel(self._infile, self._natoms, 'pairwise', self.klist, self.hkl, 
                                             self.resolution)
+            self.KPath()
             self.F3P()
 
         else:
@@ -733,6 +738,7 @@ class General(PhononManager):
             from . import parallel_phrampt as pp
             self.d_matrices = pp.make_parallel(self._infile, self._natoms, 'general', self.klist, self.hkl, 
                                             self.resolution)
+            self.KPath()
             self.F3P()
 
         else:
@@ -748,7 +754,7 @@ class General(PhononManager):
         disp = [0, 0, self.displacement]
 
         # create force constant matrix
-        force_vec = np.array([0.0, 0.0, 0.0])
+        force_vec = np.zeros(3)
 
         # loop for permuting first atom's displacements
         for i in range(0,3):
