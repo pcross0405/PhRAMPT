@@ -1,5 +1,5 @@
 import multiprocessing as mp
-from collections import Counter
+from functools import partial
 import os
 from . import phrampt_tools as pt
 
@@ -24,7 +24,10 @@ def assign_atoms(natoms, procs):
 #----------------------------------------------------------------------------------------------------------------#
 
 # method that does the the calculating in parallel
-def parallel_Calc(in_file, proc_num, proc_list, make_supercell, methodname):
+def parallel_Calc(in_file, natoms, procs, make_supercell, methodname, proc_num):
+
+    # figure out which atoms belong to which processor
+    proc_list = assign_atoms(natoms, procs)
 
     # identify which displacement method is calling this function
     if methodname == 'pairwise':
@@ -89,17 +92,12 @@ def make_parallel(in_file, natoms, make_supercell, methodname):
     pool = mp.get_context('spawn').Pool(processes=procs)
 
     # setup arguments
-    arg1 = [in_file for _ in range(procs)]
-    arg2 = [*range(procs)]
-    proc_list = assign_atoms(natoms, procs)
-    arg3 = [proc_list for _ in range(procs)]
-    arg4 = [make_supercell for _ in range(procs)]
-    arg5 = [methodname for _ in range(procs)]
-    args = [*zip(arg1, arg2, arg3, arg4, arg5)]
+    iterable = [*range(procs)]
+    func = partial(parallel_Calc, in_file, natoms, procs, make_supercell, methodname)
 
     # submit arguments to pool jobs
     # pool will return list of force constants (fc) and list of interatomic distances (iad)
-    pool_output = pool.starmap(parallel_Calc, iterable = args)
+    pool_output = pool.imap(func, iterable)
     fc_output = [fc_dict[0] for fc_dict in pool_output]
     iad_output = [iad_dict[1] for iad_dict in pool_output]
 
@@ -109,4 +107,5 @@ def make_parallel(in_file, natoms, make_supercell, methodname):
 
     # close pool before returning parallel calc
     pool.close()
+    pool.join()
     return force_constants, inter_dists
