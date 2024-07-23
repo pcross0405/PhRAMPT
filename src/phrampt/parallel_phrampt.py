@@ -24,7 +24,7 @@ def assign_atoms(natoms, procs):
 #----------------------------------------------------------------------------------------------------------------#
 
 # method that does the the calculating in parallel
-def parallel_Calc(in_file, proc_num, proc_list, methodname, klist, hkl, resolution):
+def parallel_Calc(in_file, proc_num, proc_list, methodname):
 
     # identify which displacement method is calling this function
     if methodname == 'pairwise':
@@ -35,11 +35,6 @@ def parallel_Calc(in_file, proc_num, proc_list, methodname, klist, hkl, resoluti
 
     else:
         raise SystemExit('Parallel calculation is unable to identify displacement method, please report this!')
-    
-    # reassign class attributes to new class
-    new_calc.klist = klist
-    new_calc.hkl = hkl
-    new_calc.resolution = resolution
     
     # find total number of atoms already assigned to processors
     total_atoms = 0
@@ -61,7 +56,7 @@ def parallel_Calc(in_file, proc_num, proc_list, methodname, klist, hkl, resoluti
     # close lammps after calculation finishes
     new_calc._lmp.close()
 
-    return new_calc._force_constants, new_calc._inter_dists
+    return [new_calc._force_constants, new_calc._inter_dists]
 
 #----------------------------------------------------------------------------------------------------------------#
 
@@ -92,14 +87,13 @@ def make_parallel(in_file, natoms, methodname, klist, hkl, resolution):
     proc_list = assign_atoms(natoms, procs)
     arg3 = [proc_list for _ in range(procs)]
     arg4 = [methodname for _ in range(procs)]
-    arg5 = [klist for _ in range(procs)]
-    arg6 = [hkl for _ in range(procs)]
-    arg7 = [resolution for _ in range(procs)]
-    args = [*zip(arg1, arg2, arg3, arg4, arg5, arg6, arg7)]
+    args = [*zip(arg1, arg2, arg3, arg4)]
 
     # submit arguments to pool jobs
     # pool will return list of force constants (fc) and list of interatomic distances (iad)
-    fc_output, iad_output = pool.starmap(parallel_Calc, iterable = args)
+    pool_output = pool.starmap(parallel_Calc, iterable = args)
+    fc_output = [fc_dict[0] for fc_dict in pool_output]
+    iad_output = [iad_dict[1] for iad_dict in pool_output]
 
     # concatenate ouputs into single force constants and interatomic distances dictionaries
     force_constants = {k: v for fc in fc_output for k, v in fc.items()}
