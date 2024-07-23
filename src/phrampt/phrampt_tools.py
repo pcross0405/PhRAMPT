@@ -143,9 +143,8 @@ class PhononManager:
 
         # create empty lists for appending to later
         for center_atom1 in self._center_info:
-            for center_atom2 in self._center_info:
+            for atom2 in range(self._natoms):
                 atom1 = int(center_atom1) % self._natoms
-                atom2 = int(center_atom2) % self._natoms
                 self._force_constants[f'{atom2}_{atom1}'] = []
                 self._inter_dists[f'{atom2}_{atom1}'] = []
 
