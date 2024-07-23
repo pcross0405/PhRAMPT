@@ -51,6 +51,8 @@ class PhononManager:
         # create dictionaries for tracking atom information
         self._all_info = {}
         self._center_info = {}
+        self._force_constants = {}
+        self._inter_dists = {}
         self.d_matrices = {}
         self.frequencies = {}
         self.dft_frequencies = None
@@ -71,7 +73,9 @@ class PhononManager:
         # parallel determines whether the calculation is done in parallel or serial
         # _conversion is a _conversion factor for plotting frequencies in units of THz
         # symmetry determines whether calculation is made using symmetry or not
+        # make_supercell determines whether simulation makes supercell or not
         self.symmetry = True
+        self.make_supercell = True
         self.resolution = 100
         self.parallel = False
 
@@ -90,61 +94,6 @@ class PhononManager:
 
         else:
             raise SystemExit(f'The {units} units style is not supported. Please change to metal, real, or si units.')
-        
-        # adjust simulation box parameters
-        # add gap between atoms and simulation boundary and make boundary nonperiodic
-        # this prevents atoms from moving through the boundary since that changes the
-        # interatomic distance which is needed for accurate dispersion
-        self._lmp.commands_string(f'''
-            replicate 3 3 3
-            change_box all &
-            x delta {-0.5} {0.5} &
-            y delta {-0.5} {0.5} &
-            z delta {-0.5} {0.5} &
-            boundary mm mm mm &
-            units box
-            ''')
-        
-        # find atoms that are in center unit cell of the 3x3x3 supercell
-        # LAMMPS replicates cells one layer at a time
-        # first layer of 3x3x3 has 9 cells
-        # second layer has center cell at the fifth unit cell replication, so 14 cells to get to center
-        for i in range(13*self._natoms + 1, 14*self._natoms + 1):
-            self._lmp.command(f'group CenterAtoms id {i}')
-
-        # fetch information from all atoms and centeral atoms
-        self._lmp.commands_string('''
-            compute CenterInfo CenterAtoms property/atom id type mass
-            compute AllInfo all property/atom id type mass
-            run 0
-            ''')
-        
-        # extract compute information from LAMMPS into numpy arrays
-        center_array = self._lmp.numpy.extract_compute('CenterInfo', LMP_STYLE_ATOM, LMP_TYPE_ARRAY).astype(np.float64)
-        all_array = self._lmp.numpy.extract_compute('AllInfo', LMP_STYLE_ATOM, LMP_TYPE_ARRAY).astype(np.float64)
-
-        # clean up before proceeding
-        self._lmp.commands_string('''
-            uncompute CenterInfo
-            uncompute AllInfo
-            group CenterAtoms delete
-            ''')
-
-        # organize information into dictionaries
-        for i in center_array:
-
-            # lammps outputs [0.0, 0.0, 0.0] for atoms not in this compute
-            # ignore those atoms by skipping when atom id == 0
-            # subtract one since LAMMPS indexes IDs from 1 
-            if int(i[0]) != 0:
-                self._center_info[f'{(int(i[0]) - 1)}'] = [i[1], i[2]]
-
-        for i in all_array:
-            self._all_info[f'{int(i[0]) - 1}'] = [i[1], i[2]]
-
-        # there are 3 times the number of atoms of branches in phonon dispersion
-        for branch in range(0, 3*self._natoms):
-            self.frequencies[f'{branch}'] = []
 
     #----------------------------------------------------------------------------------------------------------------#
     #----------------------------------------------------- METHODS --------------------------------------------------#
@@ -160,7 +109,7 @@ class PhononManager:
     #----------------------------------------------------------------------------------------------------------------#
 
     # method for calculating interatomic distance
-    def PairDist(self, other_atom, center_atom, interatomic_dists):
+    def PairDist(self, other_atom, center_atom):
 
         # use modulo to append distance to correct list in dictionary
         atom1 = int(center_atom) % self._natoms
@@ -185,24 +134,18 @@ class PhononManager:
         dist_comps = atom2_coord - atom1_coord
 
         # update interatomic distances dictionary
-        interatomic_dists[f'{atom2}_{atom1}'][int(other_atom) % 27] = dist_comps
-        
-        return interatomic_dists
+        self._inter_dists[f'{atom2}_{atom1}'][int(other_atom) % 27] = dist_comps
     
     #----------------------------------------------------------------------------------------------------------------#
 
     # method for displacing atoms and Constructing Force Constant Matrix (CFCM)
     def CFCM(self):
 
-        # define dictionaries for storing necessary info used later
-        force_constants = {}
-        interatomic_dists = {}
-
         # create empty lists for appending to later
         for atom1 in range(0, self._natoms):
             for atom2 in range(0, self._natoms):
-                force_constants[f'{atom2}_{atom1}'] = [np.zeros((3,3)) for _ in range(27)]
-                interatomic_dists[f'{atom2}_{atom1}'] = [np.zeros(3) for _ in range(27)]
+                self._force_constants[f'{atom2}_{atom1}'] = [np.zeros((3,3)) for _ in range(27)]
+                self._inter_dists[f'{atom2}_{atom1}'] = [np.zeros(3) for _ in range(27)]
 
         # modulos are used to append force constant matrices to correct list in dictionary
         # loop for displacing center atoms
@@ -219,30 +162,28 @@ class PhononManager:
                     continue
 
                 # find interatomic distance for calculating phonon frequencies later on
-                interatomic_dists = self.PairDist(other_atom, center_atom, interatomic_dists)
+                self.PairDist(other_atom, center_atom)
                 fcm = self.DispAtoms(other_atom, center_atom)
                 
                 # store force constant matrix (fcm) in force constants dictionary
-                force_constants[f'{atom2}_{atom1}'][int(other_atom) % 27] = fcm
+                self._force_constants[f'{atom2}_{atom1}'][int(other_atom) % 27] = fcm
 
         # compute self interaction according to acoustic sum rule
         # force matrices between the same atoms are compute as the negative sum of the other force matrices
         force_on_self = 0
         count = 0
         atom_num = 0
-        for force_matrix in force_constants:
-            force_on_self -= sum(force_constants[force_matrix])
+        for force_matrix in self._force_constants:
+            force_on_self -= sum(self._force_constants[force_matrix])
             count += 1
 
             # once all force matrices between 1 atom and all other atoms are summed, append and redo for next atom
             if count == self._natoms:
-                force_constants[f'{atom_num}_{atom_num}'].append(force_on_self)
-                interatomic_dists[f'{atom_num}_{atom_num}'].append(np.zeros(3))
+                self._force_constants[f'{atom_num}_{atom_num}'].append(force_on_self)
+                self._inter_dists[f'{atom_num}_{atom_num}'].append(np.zeros(3))
                 force_on_self = 0
                 count = 0 
                 atom_num += 1
-
-        return force_constants, interatomic_dists
 
     #----------------------------------------------------------------------------------------------------------------#
 
@@ -329,9 +270,6 @@ class PhononManager:
     # method for Constructing Dynamical Matrix (CDM)
     def CDM(self):
 
-        # fetch force constant matrices and interatomic distances
-        force_constants, interatomic_dists = self.CFCM()
-
         # generate points along reciprocal space path
         self.KPath()
 
@@ -342,7 +280,7 @@ class PhononManager:
             self.d_matrices[f'{q_val}'] = np.zeros((3*self._natoms, 3*self._natoms), dtype = complex)
 
             # loop over force constant dictionary
-            for i in force_constants:
+            for i in self._force_constants:
 
                 # force constant matrices of the same atom in different unit cells with a central atom are summed
                 summation_list = []
@@ -351,7 +289,7 @@ class PhononManager:
                 for j in range(0, 27):
 
                     # find the force constant fourier transform (fcft)
-                    fcft = force_constants[i][j]*np.exp(-1j*np.dot(q_val, interatomic_dists[i][j]))
+                    fcft = self._force_constants[i][j]*np.exp(-1j*np.dot(q_val, self._inter_dists[i][j]))
                     summation_list.append(fcft)
 
                 # indices represent which atoms contribute to the force matrix
@@ -375,6 +313,10 @@ class PhononManager:
     # method for Finding Frequencies From Path (F3P), this is used when entire brillouin zone is not sampled
     def F3P(self):
 
+        # there are 3 times the number of atoms of branches in phonon dispersion
+        for branch in range(0, 3*self._natoms):
+            self.frequencies[f'{branch}'] = []
+
         # diagonalize matrices along reciprocal space path
         for q_val in self.klist:
             freq_vals = np.linalg.eigvalsh(self.d_matrices[f'{q_val}'])
@@ -389,6 +331,68 @@ class PhononManager:
                 else:
                     freq_vals[branch] = np.sqrt(freq*self._conversion)
                     self.frequencies[f'{branch}'].append(freq_vals[branch])
+
+    #----------------------------------------------------------------------------------------------------------------#
+
+    # method for constructing supercell in LAMMPS
+    def MakeSupercell(self):
+
+        # adjust simulation box parameters
+        # add gap between atoms and simulation boundary and make boundary nonperiodic
+        # this prevents atoms from moving through the boundary since that changes the
+        # interatomic distance which is needed for accurate dispersion
+        self._lmp.commands_string(f'''
+            replicate 3 3 3
+            change_box all &
+            x delta {-0.5} {0.5} &
+            y delta {-0.5} {0.5} &
+            z delta {-0.5} {0.5} &
+            boundary mm mm mm &
+            units box
+            ''')
+        
+        # find atoms that are in center unit cell of the 3x3x3 supercell
+        # LAMMPS replicates cells one layer at a time
+        # first layer of 3x3x3 has 9 cells
+        # second layer has center cell at the fifth unit cell replication, so 14 cells to get to center
+        for i in range(13*self._natoms + 1, 14*self._natoms + 1):
+            self._lmp.command(f'group CenterAtoms id {i}')
+
+        # fetch information from all atoms and centeral atoms
+        self._lmp.commands_string('''
+            compute CenterInfo CenterAtoms property/atom id type mass
+            compute AllInfo all property/atom id type mass
+            run 0
+            ''')
+        
+        # extract compute information from LAMMPS into numpy arrays
+        center_array = self._lmp.numpy.extract_compute('CenterInfo', LMP_STYLE_ATOM, LMP_TYPE_ARRAY).astype(np.float64)
+        all_array = self._lmp.numpy.extract_compute('AllInfo', LMP_STYLE_ATOM, LMP_TYPE_ARRAY).astype(np.float64)
+
+        # clean up before proceeding
+        self._lmp.commands_string('''
+            uncompute CenterInfo
+            uncompute AllInfo
+            group CenterAtoms delete
+            ''')
+
+        # organize information into dictionaries
+        for i in center_array:
+
+            # lammps outputs [0.0, 0.0, 0.0] for atoms not in this compute
+            # ignore those atoms by skipping when atom id == 0
+            # subtract one since LAMMPS indexes IDs from 1 
+            if int(i[0]) != 0:
+                self._center_info[f'{(int(i[0]) - 1)}'] = [i[1], i[2]]
+
+        for i in all_array:
+            self._all_info[f'{int(i[0]) - 1}'] = [i[1], i[2]]
+
+    #----------------------------------------------------------------------------------------------------------------#
+
+    # method for constructing all_info and center_info dictionaries if a supercell is not desired
+    def MakeCell():
+        pass
 
     #----------------------------------------------------------------------------------------------------------------#
 
@@ -614,14 +618,43 @@ class Pairwise(PhononManager):
     # method that serves as shortcut for calling methods needed for calculating frequencies
     def Calc(self):
 
+        # check if parallel calc 
         if self.parallel == True:
             from . import parallel_phrampt as pp
-            self.d_matrices = pp.make_parallel(self._infile, self._natoms, 'pairwise', self.klist, self.hkl, 
-                                            self.resolution)
-            self.KPath()
+
+            # create supercell if necessary
+            if self.make_supercell == True:
+                self.MakeSupercell()
+
+            # otherwise displace all atoms present
+            else:
+                self.MakeCell()
+            
+            # get force constants and interatomic distances
+            self._force_constants, self._inter_dists = pp.make_parallel(self._infile, 
+                                                                        self._natoms, 
+                                                                        'pairwise', 
+                                                                        self.klist,
+                                                                        self.hkl, 
+                                                                        self.resolution)
+            
+            # construct dynamical matrices and compute frequencies
+            self.CDM
             self.F3P()
 
+        # serial calc
         else:
+
+            # create supercell if necessary
+            if self.make_supercell == True:
+                self.MakeSupercell()
+
+            # otherwise displace all atoms present
+            else:
+                self.MakeCell()
+
+            # get force contants and interatomic distances, construct dynamical matrices, compute frequencies
+            self.CFCM()
             self.CDM()
             self.F3P()
 
@@ -734,14 +767,43 @@ class General(PhononManager):
     # method that serves as shortcut for calling methods needed for calculating frequencies
     def Calc(self):
 
+        # check if parallel calc 
         if self.parallel == True:
             from . import parallel_phrampt as pp
-            self.d_matrices = pp.make_parallel(self._infile, self._natoms, 'general', self.klist, self.hkl, 
-                                            self.resolution)
-            self.KPath()
+
+            # create supercell if necessary
+            if self.make_supercell == True:
+                self.MakeSupercell()
+
+            # otherwise displace all atoms present
+            else:
+                self.MakeCell()
+            
+            # get force constants and interatomic distances
+            self._force_constants, self._inter_dists = pp.make_parallel(self._infile, 
+                                                                        self._natoms, 
+                                                                        'general', 
+                                                                        self.klist,
+                                                                        self.hkl, 
+                                                                        self.resolution)
+            
+            # construct dynamical matrices and compute frequencies
+            self.CDM
             self.F3P()
 
+        # serial calc
         else:
+
+            # create supercell if necessary
+            if self.make_supercell == True:
+                self.MakeSupercell()
+
+            # otherwise displace all atoms present
+            else:
+                self.MakeCell()
+
+            # get force contants and interatomic distances, construct dynamical matrices, compute frequencies
+            self.CFCM()
             self.CDM()
             self.F3P()
 
