@@ -134,7 +134,7 @@ class PhononManager:
         dist_comps = atom2_coord - atom1_coord
 
         # update interatomic distances dictionary
-        self._inter_dists[f'{atom2}_{atom1}'][int(other_atom) % 27] = dist_comps
+        self._inter_dists[f'{atom2}_{atom1}'].append(dist_comps)
     
     #----------------------------------------------------------------------------------------------------------------#
 
@@ -144,8 +144,8 @@ class PhononManager:
         # create empty lists for appending to later
         for atom1 in range(0, self._natoms):
             for atom2 in range(0, self._natoms):
-                self._force_constants[f'{atom2}_{atom1}'] = [np.zeros((3,3)) for _ in range(27)]
-                self._inter_dists[f'{atom2}_{atom1}'] = [np.zeros(3) for _ in range(27)]
+                self._force_constants[f'{atom2}_{atom1}'] = []
+                self._inter_dists[f'{atom2}_{atom1}'] = []
 
         # modulos are used to append force constant matrices to correct list in dictionary
         # loop for displacing center atoms
@@ -166,7 +166,7 @@ class PhononManager:
                 fcm = self.DispAtoms(other_atom, center_atom)
                 
                 # store force constant matrix (fcm) in force constants dictionary
-                self._force_constants[f'{atom2}_{atom1}'][int(other_atom) % 27] = fcm
+                self._force_constants[f'{atom2}_{atom1}'].append(fcm)
 
         # compute self interaction according to acoustic sum rule
         # force matrices between the same atoms are compute as the negative sum of the other force matrices
