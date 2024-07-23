@@ -55,13 +55,13 @@ def parallel_Calc(in_file, proc_num, proc_list, methodname, klist, hkl, resoluti
     # reassign center_info dictionary
     new_calc._center_info = center_info_temp
 
-    # calculate dynamical matrices for assigned atoms
-    new_calc.CDM()
+    # calculate force constants for assigned atoms
+    new_calc.CFCM()
 
     # close lammps after calculation finishes
     new_calc._lmp.close()
 
-    return new_calc.d_matrices
+    return new_calc._force_constants, new_calc._inter_dists
 
 #----------------------------------------------------------------------------------------------------------------#
 
@@ -98,13 +98,13 @@ def make_parallel(in_file, natoms, methodname, klist, hkl, resolution):
     args = [*zip(arg1, arg2, arg3, arg4, arg5, arg6, arg7)]
 
     # submit arguments to pool jobs
-    calc_output = pool.starmap(parallel_Calc, iterable = args)
+    # pool will return list of force constants (fc) and list of interatomic distances (iad)
+    fc_output, iad_output = pool.starmap(parallel_Calc, iterable = args)
 
-    # sum output from parallel calc with collections counter
-    total_output = Counter()
-    for d_matrix_dict in calc_output:
-        total_output.update(d_matrix_dict)
+    # concatenate ouputs into single force constants and interatomic distances dictionaries
+    force_constants = {k: v for fc in fc_output for k, v in fc.items()}
+    inter_dists = {k: v for iad in iad_output for k, v in iad.items()}
 
     # close pool before returning parallel calc
     pool.close()
-    return dict(total_output)
+    return force_constants, inter_dists
