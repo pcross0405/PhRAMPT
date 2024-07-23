@@ -89,7 +89,7 @@ def make_parallel(in_file, natoms, make_supercell, methodname):
                         Rerun with more processors or run as a serial calculation.''')
 
     # create pool
-    pool = mp.get_context('spawn').Pool(processes=procs)
+    pool = mp.get_context('spawn').Pool(processes=procs, maxtasksperchild=1)
 
     # setup arguments
     iterable = [*range(procs)]
