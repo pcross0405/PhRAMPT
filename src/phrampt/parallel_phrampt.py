@@ -24,7 +24,7 @@ def assign_atoms(natoms, procs):
 #----------------------------------------------------------------------------------------------------------------#
 
 # method that does the the calculating in parallel
-def parallel_Calc(in_file, proc_num, proc_list, methodname):
+def parallel_Calc(in_file, proc_num, proc_list, make_supercell, methodname):
 
     # identify which displacement method is calling this function
     if methodname == 'pairwise':
@@ -36,6 +36,13 @@ def parallel_Calc(in_file, proc_num, proc_list, methodname):
     else:
         raise SystemExit('Parallel calculation is unable to identify displacement method, please report this!')
     
+    # choose to whether or not a supercell is made
+    if make_supercell == True:
+        new_calc.MakeSupercell()
+
+    else:
+        new_calc.MakeCell()
+
     # find total number of atoms already assigned to processors
     total_atoms = 0
     for i in range(proc_num):
@@ -62,7 +69,7 @@ def parallel_Calc(in_file, proc_num, proc_list, methodname):
 
 # method for creating parallel pools
 
-def make_parallel(in_file, natoms, methodname):
+def make_parallel(in_file, natoms, make_supercell, methodname):
 
     # get number of available processors
     # subtract 1 since 1 processor runs main python script
@@ -86,8 +93,9 @@ def make_parallel(in_file, natoms, methodname):
     arg2 = [*range(procs)]
     proc_list = assign_atoms(natoms, procs)
     arg3 = [proc_list for _ in range(procs)]
-    arg4 = [methodname for _ in range(procs)]
-    args = [*zip(arg1, arg2, arg3, arg4)]
+    arg4 = [make_supercell for _ in range(procs)]
+    arg5 = [methodname for _ in range(procs)]
+    args = [*zip(arg1, arg2, arg3, arg4, arg5)]
 
     # submit arguments to pool jobs
     # pool will return list of force constants (fc) and list of interatomic distances (iad)

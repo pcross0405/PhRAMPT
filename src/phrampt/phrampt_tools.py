@@ -637,7 +637,10 @@ class Pairwise(PhononManager):
                 self.MakeCell()
             
             # get force constants and interatomic distances
-            self._force_constants, self._inter_dists = pp.make_parallel(self._infile, self._natoms, 'pairwise')
+            self._force_constants, self._inter_dists = pp.make_parallel(self._infile, 
+                                                                        self._natoms, 
+                                                                        self.make_supercell,
+                                                                        'pairwise')
             
             # find self interaction force constants, construct dynamical matrices, and compute frequencies
             self.AcousticSum()
@@ -781,9 +784,12 @@ class General(PhononManager):
             # otherwise displace all atoms present
             else:
                 self.MakeCell()
-            
+
             # get force constants and interatomic distances
-            self._force_constants, self._inter_dists = pp.make_parallel(self._infile, self._natoms, 'general')
+            self._force_constants, self._inter_dists = pp.make_parallel(self._infile, 
+                                                                        self._natoms, 
+                                                                        self.make_supercell, 
+                                                                        'general')
             
             # find self interaction force constants, construct dynamical matrices, and compute frequencies
             self.AcousticSum()
