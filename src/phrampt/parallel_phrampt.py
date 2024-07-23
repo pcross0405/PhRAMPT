@@ -62,7 +62,7 @@ def parallel_Calc(in_file, proc_num, proc_list, methodname):
 
 # method for creating parallel pools
 
-def make_parallel(in_file, natoms, methodname, klist, hkl, resolution):
+def make_parallel(in_file, natoms, methodname):
 
     # get number of available processors
     # subtract 1 since 1 processor runs main python script
