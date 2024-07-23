@@ -142,8 +142,8 @@ class PhononManager:
     def CFCM(self):
 
         # create empty lists for appending to later
-        for atom1 in range(0, self._natoms):
-            for atom2 in range(0, self._natoms):
+        for atom1 in range(len(self._center_info)):
+            for atom2 in range(len(self._center_info)):
                 self._force_constants[f'{atom2}_{atom1}'] = []
                 self._inter_dists[f'{atom2}_{atom1}'] = []
 
