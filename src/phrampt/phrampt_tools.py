@@ -142,8 +142,10 @@ class PhononManager:
     def CFCM(self):
 
         # create empty lists for appending to later
-        for atom1 in range(len(self._center_info)):
-            for atom2 in range(len(self._center_info)):
+        for center_atom1 in self._center_info:
+            for center_atom2 in self._center_info:
+                atom1 = int(center_atom1) % self._natoms
+                atom2 = int(center_atom2) % self._natoms
                 self._force_constants[f'{atom2}_{atom1}'] = []
                 self._inter_dists[f'{atom2}_{atom1}'] = []
 
@@ -168,22 +170,26 @@ class PhononManager:
                 # store force constant matrix (fcm) in force constants dictionary
                 self._force_constants[f'{atom2}_{atom1}'].append(fcm)
 
+    #----------------------------------------------------------------------------------------------------------------#
+
+    # method for computing force constants from self interactions
+    def AcousticSum(self):
+
         # compute self interaction according to acoustic sum rule
         # force matrices between the same atoms are compute as the negative sum of the other force matrices
         force_on_self = 0
         count = 0
-        atom_num = 0
         for force_matrix in self._force_constants:
             force_on_self -= sum(self._force_constants[force_matrix])
             count += 1
 
             # once all force matrices between 1 atom and all other atoms are summed, append and redo for next atom
             if count == self._natoms:
+                atom_num = force_matrix.split('_')[1]
                 self._force_constants[f'{atom_num}_{atom_num}'].append(force_on_self)
                 self._inter_dists[f'{atom_num}_{atom_num}'].append(np.zeros(3))
                 force_on_self = 0
                 count = 0 
-                atom_num += 1
 
     #----------------------------------------------------------------------------------------------------------------#
 
@@ -638,8 +644,9 @@ class Pairwise(PhononManager):
                                                                         self.hkl, 
                                                                         self.resolution)
             
-            # construct dynamical matrices and compute frequencies
-            self.CDM
+            # find self interaction force constants, construct dynamical matrices, and compute frequencies
+            self.AcousticSum()
+            self.CDM()
             self.F3P()
 
         # serial calc
@@ -655,6 +662,7 @@ class Pairwise(PhononManager):
 
             # get force contants and interatomic distances, construct dynamical matrices, compute frequencies
             self.CFCM()
+            self.AcousticSum()
             self.CDM()
             self.F3P()
 
@@ -787,8 +795,9 @@ class General(PhononManager):
                                                                         self.hkl, 
                                                                         self.resolution)
             
-            # construct dynamical matrices and compute frequencies
-            self.CDM
+            # find self interaction force constants, construct dynamical matrices, and compute frequencies
+            self.AcousticSum()
+            self.CDM()
             self.F3P()
 
         # serial calc
@@ -804,6 +813,7 @@ class General(PhononManager):
 
             # get force contants and interatomic distances, construct dynamical matrices, compute frequencies
             self.CFCM()
+            self.AcousticSum()
             self.CDM()
             self.F3P()
 
