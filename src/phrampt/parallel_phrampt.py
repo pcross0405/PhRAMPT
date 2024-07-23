@@ -96,8 +96,14 @@ def make_parallel(in_file, natoms, make_supercell, methodname):
     func = partial(parallel_Calc, in_file, natoms, procs, make_supercell, methodname)
 
     # submit arguments to pool jobs
-    # pool will return list of force constants (fc) and list of interatomic distances (iad)
     pool_output = pool.imap(func, iterable)
+
+    # close pool
+    pool.close()
+    pool.join()
+
+    # pool will return list of force constants (fc) and list of interatomic distances (iad)
+    pool_output = list(pool_output)
     fc_output = [fc_dict[0] for fc_dict in pool_output]
     iad_output = [iad_dict[1] for iad_dict in pool_output]
 
@@ -105,7 +111,9 @@ def make_parallel(in_file, natoms, make_supercell, methodname):
     force_constants = {k: v for fc in fc_output for k, v in fc.items()}
     inter_dists = {k: v for iad in iad_output for k, v in iad.items()}
 
-    # close pool before returning parallel calc
-    pool.close()
-    pool.join()
+    # free up some memory
+    del pool_output
+    del fc_output
+    del iad_output
+
     return force_constants, inter_dists
