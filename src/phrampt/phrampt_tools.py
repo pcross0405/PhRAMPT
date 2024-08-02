@@ -403,12 +403,6 @@ class PhononManager:
 
     #----------------------------------------------------------------------------------------------------------------#
 
-    # method for constructing all_info and center_info dictionaries if a supercell is not desired
-    def MakeCell():
-        pass
-
-    #----------------------------------------------------------------------------------------------------------------#
-
     # method that serves as shortcut for calling methods needed for calculating frequencies
     def Calc(self):
     
@@ -635,14 +629,8 @@ class Pairwise(PhononManager):
         if self.parallel == True:
             from . import parallel_phrampt as pp
 
-            # create supercell if necessary
-            if self.make_supercell != False:
-                self.MakeSupercell()
-
-            # otherwise displace all atoms present
-            else:
-                self.make_supercell = [1,1,1]
-                self.MakeCell()
+            # make super cell based off of specification
+            self.MakeSupercell()
             
             # get force constants and interatomic distances
             self._force_constants, self._inter_dists = pp.make_parallel(self._infile, 
@@ -658,14 +646,8 @@ class Pairwise(PhononManager):
         # serial calc
         else:
 
-            # create supercell if necessary
-            if self.make_supercell != False:
-                self.MakeSupercell()
-
-            # otherwise displace all atoms present
-            else:
-                self.make_supercell = [1,1,1]
-                self.MakeCell()
+            # make super cell based off of specification
+            self.MakeSupercell()
 
             # get force contants and interatomic distances, construct dynamical matrices, compute frequencies
             self.CFCM()
@@ -786,14 +768,8 @@ class General(PhononManager):
         if self.parallel == True:
             from . import parallel_phrampt as pp
 
-            # create supercell if necessary
-            if self.make_supercell != False:
-                self.MakeSupercell()
-
-            # otherwise displace all atoms present
-            else:
-                self.make_supercell = [1,1,1]
-                self.MakeCell()
+            # make super cell based off of specification
+            self.MakeSupercell()
 
             # get force constants and interatomic distances
             self._force_constants, self._inter_dists = pp.make_parallel(self._infile, 
@@ -809,14 +785,8 @@ class General(PhononManager):
         # serial calc
         else:
 
-            # create supercell if necessary
-            if self.make_supercell != False:
-                self.MakeSupercell()
-
-            # otherwise displace all atoms present
-            else:
-                self.make_supercell = [1,1,1]
-                self.MakeCell()
+            # make super cell based off of specification
+            self.MakeSupercell()
 
             # get force contants and interatomic distances, construct dynamical matrices, compute frequencies
             self.CFCM()
