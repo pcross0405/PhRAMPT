@@ -73,9 +73,9 @@ class PhononManager:
         # parallel determines whether the calculation is done in parallel or serial
         # _conversion is a _conversion factor for plotting frequencies in units of THz
         # symmetry determines whether calculation is made using symmetry or not
-        # make_supercell determines whether simulation makes supercell or not
+        # make_supercell determines whether simulation makes supercell or not, set to False to turn off
         self.symmetry = True
-        self.make_supercell = True
+        self.make_supercell = [3,3,3]
         self.resolution = 100
         self.parallel = False
 
@@ -278,6 +278,9 @@ class PhononManager:
         # generate points along reciprocal space path
         self.KPath()
 
+        # compute how many unit cells there are
+        cell_range = self.make_supercell[0]*self.make_supercell[1]*self.make_supercell[2]
+
         # loop over all points along recipocal space path
         for q_val in self.klist:
 
@@ -290,8 +293,8 @@ class PhononManager:
                 # force constant matrices of the same atom in different unit cells with a central atom are summed
                 summation_list = []
 
-                # in 3x3x3 supercell there are 27 unit cells, loop over all 27
-                for j in range(0, 27):
+                # in XxYxZ supercell there are cell_range unit cells, loop over all cell_range
+                for j in range(0, cell_range):
 
                     # find the force constant fourier transform (fcft)
                     fcft = self._force_constants[i][j]*np.exp(-1j*np.dot(q_val, self._inter_dists[i][j]))
@@ -347,7 +350,7 @@ class PhononManager:
         # this prevents atoms from moving through the boundary since that changes the
         # interatomic distance which is needed for accurate dispersion
         self._lmp.commands_string(f'''
-            replicate 3 3 3
+            replicate {self.make_supercell[0]} {self.make_supercell[1]} {self.make_supercell[2]}
             change_box all &
             x delta {-0.5} {0.5} &
             y delta {-0.5} {0.5} &
@@ -356,11 +359,16 @@ class PhononManager:
             units box
             ''')
         
-        # find atoms that are in center unit cell of the 3x3x3 supercell
+        # find center unit cell based off of make_supercell dimensions
+        bottom_cells = self.make_supercell[0]*self.make_supercell[1]*round(self.make_supercell[2]/2 - 0.5)
+        center_cells = self.make_supercell[0]*round(self.make_supercell[1]/2 - 0.5)
+        remaining_cells = round(self.make_supercell[0]/2 - 0.5)
+        center_number = bottom_cells + center_cells + remaining_cells
+        
+        # find atoms that are in center unit cell of the XxYxZ supercell
         # LAMMPS replicates cells one layer at a time
-        # first layer of 3x3x3 has 9 cells
-        # second layer has center cell at the fifth unit cell replication, so 14 cells to get to center
-        for i in range(13*self._natoms + 1, 14*self._natoms + 1):
+        # first layer of XxYxZ has XxY cells
+        for i in range(center_number*self._natoms + 1, (center_number + 1)*self._natoms + 1):
             self._lmp.command(f'group CenterAtoms id {i}')
 
         # fetch information from all atoms and centeral atoms
@@ -628,11 +636,12 @@ class Pairwise(PhononManager):
             from . import parallel_phrampt as pp
 
             # create supercell if necessary
-            if self.make_supercell == True:
-                self.MakeSupercell()
+            if self.make_supercell != False:
+                self.MakeSupercell(self.make_supercell)
 
             # otherwise displace all atoms present
             else:
+                self.make_supercell = [1,1,1]
                 self.MakeCell()
             
             # get force constants and interatomic distances
@@ -650,11 +659,12 @@ class Pairwise(PhononManager):
         else:
 
             # create supercell if necessary
-            if self.make_supercell == True:
-                self.MakeSupercell()
+            if self.make_supercell != False:
+                self.MakeSupercell(self.make_supercell)
 
             # otherwise displace all atoms present
             else:
+                self.make_supercell = [1,1,1]
                 self.MakeCell()
 
             # get force contants and interatomic distances, construct dynamical matrices, compute frequencies
@@ -777,11 +787,12 @@ class General(PhononManager):
             from . import parallel_phrampt as pp
 
             # create supercell if necessary
-            if self.make_supercell == True:
-                self.MakeSupercell()
+            if self.make_supercell != False:
+                self.MakeSupercell(self.make_supercell)
 
             # otherwise displace all atoms present
             else:
+                self.make_supercell = [1,1,1]
                 self.MakeCell()
 
             # get force constants and interatomic distances
@@ -799,11 +810,12 @@ class General(PhononManager):
         else:
 
             # create supercell if necessary
-            if self.make_supercell == True:
-                self.MakeSupercell()
+            if self.make_supercell != False:
+                self.MakeSupercell(self.make_supercell)
 
             # otherwise displace all atoms present
             else:
+                self.make_supercell = [1,1,1]
                 self.MakeCell()
 
             # get force contants and interatomic distances, construct dynamical matrices, compute frequencies

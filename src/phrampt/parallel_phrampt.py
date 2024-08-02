@@ -40,8 +40,8 @@ def parallel_Calc(in_file, natoms, procs, make_supercell, methodname, proc_num):
         raise SystemExit('Parallel calculation is unable to identify displacement method, please report this!')
     
     # choose to whether or not a supercell is made
-    if make_supercell == True:
-        new_calc.MakeSupercell()
+    if make_supercell != False:
+        new_calc.MakeSupercell(make_supercell)
 
     else:
         new_calc.MakeCell()
