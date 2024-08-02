@@ -637,7 +637,7 @@ class Pairwise(PhononManager):
 
             # create supercell if necessary
             if self.make_supercell != False:
-                self.MakeSupercell(self.make_supercell)
+                self.MakeSupercell()
 
             # otherwise displace all atoms present
             else:
@@ -660,7 +660,7 @@ class Pairwise(PhononManager):
 
             # create supercell if necessary
             if self.make_supercell != False:
-                self.MakeSupercell(self.make_supercell)
+                self.MakeSupercell()
 
             # otherwise displace all atoms present
             else:
@@ -788,7 +788,7 @@ class General(PhononManager):
 
             # create supercell if necessary
             if self.make_supercell != False:
-                self.MakeSupercell(self.make_supercell)
+                self.MakeSupercell()
 
             # otherwise displace all atoms present
             else:
@@ -811,7 +811,7 @@ class General(PhononManager):
 
             # create supercell if necessary
             if self.make_supercell != False:
-                self.MakeSupercell(self.make_supercell)
+                self.MakeSupercell()
 
             # otherwise displace all atoms present
             else:

@@ -41,9 +41,11 @@ def parallel_Calc(in_file, natoms, procs, make_supercell, methodname, proc_num):
     
     # choose to whether or not a supercell is made
     if make_supercell != False:
-        new_calc.MakeSupercell(make_supercell)
+        new_calc.make_supercell = make_supercell
+        new_calc.MakeSupercell()
 
     else:
+        new_calc.make_supercell = [1,1,1]
         new_calc.MakeCell()
 
     # find total number of atoms already assigned to processors
