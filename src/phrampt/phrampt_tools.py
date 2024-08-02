@@ -346,18 +346,7 @@ class PhononManager:
     def MakeSupercell(self):
 
         # adjust simulation box parameters
-        # add gap between atoms and simulation boundary and make boundary nonperiodic
-        # this prevents atoms from moving through the boundary since that changes the
-        # interatomic distance which is needed for accurate dispersion
-        self._lmp.commands_string(f'''
-            replicate {self.make_supercell[0]} {self.make_supercell[1]} {self.make_supercell[2]}
-            change_box all &
-            x delta {-0.5} {0.5} &
-            y delta {-0.5} {0.5} &
-            z delta {-0.5} {0.5} &
-            boundary mm mm mm &
-            units box
-            ''')
+        self._lmp.command(f'replicate {self.make_supercell[0]} {self.make_supercell[1]} {self.make_supercell[2]}')
         
         # find center unit cell based off of make_supercell dimensions
         bottom_cells = self.make_supercell[0]*self.make_supercell[1]*round(self.make_supercell[2]/2 - 0.5)
