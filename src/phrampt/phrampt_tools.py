@@ -55,7 +55,6 @@ class PhononManager:
         self._inter_dists = {}
         self.d_matrices = {}
         self.frequencies = {}
-        self._eigenvectors = {}
         self.normal_modes = {}
         self.dft_frequencies = None
 
@@ -329,13 +328,7 @@ class PhononManager:
 
         # diagonalize matrices along reciprocal space path
         for q_val in self.klist:
-            freq_vals, eigenvectors = np.linalg.eigh(self.d_matrices[f'{q_val}'])
-
-            # reorganize eigenvectors according to numpy documentation
-            vecs = [eigenvectors[:,i] for i in len(eigenvectors)]
-            
-            # create tuples of eigenvalues and eigenvectors
-            self._eigenvectors = zip(freq_vals, vecs)
+            freq_vals= np.linalg.eigvalsh(self.d_matrices[f'{q_val}'])
 
             # check sign of frequencies and convert to THz
             # imaginary frequencies are made negative for plotting purposes
@@ -347,6 +340,63 @@ class PhononManager:
                 else:
                     freq_vals[branch] = np.sqrt(freq*self._conversion)
                     self.frequencies[f'{branch}'].append(freq_vals[branch])
+    
+    #----------------------------------------------------------------------------------------------------------------#  
+
+    # method that serves as shortcut for calling methods needed for calculating frequencies
+    def Calc(self):
+
+        # this method will be over written by subclasses
+        # see subclasses at end of script
+        pass
+
+    #----------------------------------------------------------------------------------------------------------------#
+
+    # generator for NormalModes method
+    def gen_NormalModes(self, HBAR, BETA, coords, q_val):
+
+        # get frequencies and eigenvectors from dynamical matrices
+        eig_vals, eig_vecs = np.linalg.eigh(self.d_matrices[f'{q_val}'])    
+
+        # reorganize eig_vecs according numpy documentation
+        eig_vecs = [eig_vecs[:,i] for i in range(len(eig_vecs))]
+
+        # make tuple of corresponding vals and vecs
+        eig_vals_and_vecs = list(zip(eig_vals, eig_vecs))
+
+        # loop through vals and vecs
+        for val_and_vec in eig_vals_and_vecs:
+
+            # fetch frequency, convert from THz to Hz
+            freq = val_and_vec[0]
+            if freq < 0:
+                freq = -1*np.sqrt(-1*freq*self._conversion)*10**12
+            else:
+                freq = np.sqrt(freq*self._conversion)*10**12
+
+            # first calculate amplitude of mode
+            # amplitude = sqrt((2(n+1/2)hbar)/(mw)) where n is phonon occupation from Bose-Einstein distribution
+            # m is mass, and w is frequency
+            phon_occ = np.reciprocal(np.exp(HBAR*freq*BETA) - 1)
+            amp = np.sqrt(2*(phon_occ + 1/2)*HBAR/freq)
+
+            # split up eigenvectors into atomic components
+            vecs = np.split(val_and_vec[1], self._natoms)
+
+            # loop through each atom finding its normal mode displacements
+            for j, atom_id in enumerate(self._center_info):
+
+                # convert mass from g/mol to kg
+                mass = self._center_info[atom_id][1]*1.660539067*10**(-27)
+
+                # positions are in Angstrom, convert to meters
+                pos = coords[f'{atom_id}']*10**(-10)
+
+                # calculate displacement and append to normal_modes dictionary
+                c = amp/(2*np.sqrt(mass))
+                disp = c*(vecs[j]*np.exp(1j*np.dot(q_val, pos)) + np.conj(vecs[j])*np.exp(-1j*np.dot(q_val, pos)))
+                id_disp = [int(atom_id) + 1, disp]
+                yield id_disp
 
     #----------------------------------------------------------------------------------------------------------------#
 
@@ -375,46 +425,15 @@ class PhononManager:
             # get coordinates of both atoms using indices from id list
             coords[f'{atom_id}'] = positions[ind]
 
-        # check to see if eigenvectors are available, if not, calculate them
-        if self._eigenvectors == {}:
-            self.Calc()
-            self.F3P()
-
-        # create list so ith element can be called, zip
-        self._eigenvectors = list(self._eigenvectors)
-
         # loop over reciprocal space points since there is a normal mode for each point
-        for i, q_val in enumerate(self.klist):
+        for q_val in self.klist:
 
             # update dictionary
             self.normal_modes[f'{q_val}'] = []
 
-            # fetch frequency, convert from THz to Hz
-            freq = self._eigenvectors[i][0]*10**12
-
-            # first calculate amplitude of mode
-            # amplitude = sqrt((2(n+1/2)hbar)/(mw)) where n is phonon occupation from Bose-Einstein distribution
-            # m is mass, and w is frequency
-            phon_occ = np.reciprocal(np.exp(HBAR*freq*BETA) - 1)
-            amp = np.sqrt(2*(phon_occ + 1/2)*HBAR/freq)
-
-            # split up eigenvectors into atomic components
-            vecs = np.split(self._eigenvectors[i][1], self._natoms)
-
-            # loop through each atom finding its normal mode displacements
-            for j, atom_id in enumerate(self._center_info):
-
-                # convert mass from g/mol to kg
-                mass = self._center_info[atom_id][1]*1.660539067*10**(-27)
-
-                # positions are in Angstrom, convert to meters
-                pos = coords[f'{atom_id}']*10**(-10)
-
-                # calculate displacement and append to normal_modes dictionary
-                c = amp/(2*np.sqrt(mass))
-                disp = c*(vecs[j]*np.exp(1j*np.dot(q_val, pos)) + np.conj(vecs[j])*np.exp(-1j*np.dot(q_val, pos)))
-                id_disp = [int(atom_id) + 1, disp]
-                self.normal_modes[f'{q_val}'].append(id_disp)
+            # compute normal modes with generator
+            for mode in self.gen_NormalModes(HBAR, BETA, coords, q_val):
+                self.normal_modes[f'{q_val}'].append(mode)
 
     #----------------------------------------------------------------------------------------------------------------#
 
