@@ -55,6 +55,8 @@ class PhononManager:
         self._inter_dists = {}
         self.d_matrices = {}
         self.frequencies = {}
+        self._eigenvectors = {}
+        self.normal_modes = {}
         self.dft_frequencies = None
 
         # list of reciprocal space points to sample
@@ -318,16 +320,22 @@ class PhononManager:
 
     #----------------------------------------------------------------------------------------------------------------#
     
-    # method for Finding Frequencies From Path (F3P), this is used when entire brillouin zone is not sampled
+    # method for Finding Frequencies From Path (F3P)
     def F3P(self):
 
         # there are 3 times the number of atoms of branches in phonon dispersion
-        for branch in range(0, 3*self._natoms):
+        for branch in range(3*self._natoms):
             self.frequencies[f'{branch}'] = []
 
         # diagonalize matrices along reciprocal space path
         for q_val in self.klist:
-            freq_vals = np.linalg.eigvalsh(self.d_matrices[f'{q_val}'])
+            freq_vals, eigenvectors = np.linalg.eigh(self.d_matrices[f'{q_val}'])
+
+            # reorganize eigenvectors according to numpy documentation
+            vecs = [eigenvectors[:,i] for i in len(eigenvectors)]
+            
+            # create tuples of eigenvalues and eigenvectors
+            self._eigenvectors = zip(freq_vals, vecs)
 
             # check sign of frequencies and convert to THz
             # imaginary frequencies are made negative for plotting purposes
@@ -342,10 +350,78 @@ class PhononManager:
 
     #----------------------------------------------------------------------------------------------------------------#
 
+    # method for finding normal modes from eigenvectors of dynamical matrices
+    def NormalModes(self):
+
+        # define some constants for later calculations
+        # hbar has units of joules seconds
+        # beta is 1 over the Boltzmann constant times temperature (300 K since we are assuming room temperature)
+        HBAR = 1.054571817*10**(-34)
+        BETA = 1/(1.380649*10**(-23)*300)
+
+        # find atom positions
+        coords = {}
+        for atom_id in self._center_info:
+
+            # fetch atom ids from LAMMPS
+            ids = list(self._lmp.numpy.extract_atom('id').astype(np.float64) - 1)
+
+            # find index of atom in id list
+            ind = ids.index(int(atom_id))
+
+            # get list of all atom coordinates
+            positions = list(self._lmp.numpy.extract_atom('x').astype(np.float64))
+
+            # get coordinates of both atoms using indices from id list
+            coords[f'{atom_id}'] = positions[ind]
+
+        # check to see if eigenvectors are available, if not, calculate them
+        if self._eigenvectors == {}:
+            self.Calc()
+            self.F3P()
+
+        # create list so ith element can be called, zip
+        self._eigenvectors = list(self._eigenvectors)
+
+        # loop over reciprocal space points since there is a normal mode for each point
+        for i, q_val in enumerate(self.klist):
+
+            # update dictionary
+            self.normal_modes[f'{q_val}'] = []
+
+            # fetch frequency, convert from THz to Hz
+            freq = self._eigenvectors[i][0]*10**12
+
+            # first calculate amplitude of mode
+            # amplitude = sqrt((2(n+1/2)hbar)/(mw)) where n is phonon occupation from Bose-Einstein distribution
+            # m is mass, and w is frequency
+            phon_occ = np.reciprocal(np.exp(HBAR*freq*BETA) - 1)
+            amp = np.sqrt(2*(phon_occ + 1/2)*HBAR/freq)
+
+            # split up eigenvectors into atomic components
+            vecs = np.split(self._eigenvectors[i][1], self._natoms)
+
+            # loop through each atom finding its normal mode displacements
+            for j, atom_id in enumerate(self._center_info):
+
+                # convert mass from g/mol to kg
+                mass = self._center_info[atom_id][1]*1.660539067*10**(-27)
+
+                # positions are in Angstrom, convert to meters
+                pos = coords[f'{atom_id}']*10**(-10)
+
+                # calculate displacement and append to normal_modes dictionary
+                c = amp/(2*np.sqrt(mass))
+                disp = c*(vecs[j]*np.exp(1j*np.dot(q_val, pos)) + np.conj(vecs[j])*np.exp(-1j*np.dot(q_val, pos)))
+                id_disp = [int(atom_id) + 1, disp]
+                self.normal_modes[f'{q_val}'].append(id_disp)
+
+    #----------------------------------------------------------------------------------------------------------------#
+
     # method for constructing supercell in LAMMPS
     def MakeSupercell(self):
 
-        # adjust simulation box parameters
+        # use LAMMPS command to create supercell
         self._lmp.command(f'replicate {self.make_supercell[0]} {self.make_supercell[1]} {self.make_supercell[2]}')
         
         # find center unit cell based off of make_supercell dimensions
@@ -355,8 +431,6 @@ class PhononManager:
         center_number = bottom_cells + center_cells + remaining_cells
         
         # find atoms that are in center unit cell of the XxYxZ supercell
-        # LAMMPS replicates cells one layer at a time
-        # first layer of XxYxZ has XxY cells
         for i in range(center_number*self._natoms + 1, (center_number + 1)*self._natoms + 1):
             self._lmp.command(f'group CenterAtoms id {i}')
 
@@ -389,15 +463,6 @@ class PhononManager:
 
         for i in all_array:
             self._all_info[f'{int(i[0]) - 1}'] = [i[1], i[2]]
-
-    #----------------------------------------------------------------------------------------------------------------#
-
-    # method that serves as shortcut for calling methods needed for calculating frequencies
-    def Calc(self):
-    
-        # this method will be overwritten by subclasses
-        # see subclasses at the bottom of the script
-        pass
 
     #----------------------------------------------------------------------------------------------------------------#
 
@@ -471,7 +536,7 @@ class PhononManager:
         # create x axis
         x = np.linspace(0, 1, len(self.klist))
 
-        # create subplots, each branch will have its own y axis
+        # create subplots, each phonon branch will have its own y values
         _, ax = plt.subplots()
 
         # add high symmetry point labels to plot        
