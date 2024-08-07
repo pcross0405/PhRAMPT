@@ -353,7 +353,7 @@ class PhononManager:
     #----------------------------------------------------------------------------------------------------------------#
 
     # generator for NormalModes method
-    def gen_NormalModes(self, HBAR, BETA, coords, q_val):
+    def gen_NormalModes(self, HBAR, BETA, coords, q_val, pos_conv, mass_conv):
 
         # get frequencies and eigenvectors from dynamical matrices
         eig_vals, eig_vecs = np.linalg.eigh(self.d_matrices[f'{q_val}'])    
@@ -386,14 +386,15 @@ class PhononManager:
             # loop through each atom finding its normal mode displacements
             for j, atom_id in enumerate(self._center_info):
 
-                # convert mass from g/mol to kg
-                mass = self._center_info[atom_id][1]*1.660539067*10**(-27)
+                # mass may be in g/mol, convert to kg
+                mass = self._center_info[atom_id][1]*mass_conv
 
-                # positions are in Angstrom, convert to meters
-                pos = coords[f'{atom_id}']*10**(-10)
+                # positions may be in Angstrom, convert to meters
+                pos = coords[f'{atom_id}']*pos_conv
 
                 # calculate displacement and append to normal_modes dictionary
-                c = amp/(2*np.sqrt(mass))
+                # 10**10 in c is a conversion from meters to Angstroms
+                c = amp/(2*np.sqrt(mass))*10**(10)
                 disp = c*(vecs[j]*np.exp(1j*np.dot(q_val, pos)) + np.conj(vecs[j])*np.exp(-1j*np.dot(q_val, pos)))
                 id_disp = (int(atom_id) + 1, disp)
                 yield id_disp
@@ -408,6 +409,19 @@ class PhononManager:
         # beta is 1 over the Boltzmann constant times temperature (300 K since we are assuming room temperature)
         HBAR = 1.054571817*10**(-34)
         BETA = 1/(1.380649*10**(-23)*300)
+
+        units = self._lmp.extract_global('units')
+        if units == 'metal':
+            pos_conv = 10**(-10)
+            mass_conv = 1.660539067*10**(-27)
+
+        elif units == 'real':
+            pos_conv = 10**(-10)
+            mass_conv = 1.660539067*10**(-27)
+
+        elif units == 'si':
+            pos_conv = 1
+            mass_conv = 1
 
         # find atom positions
         coords = {}
@@ -432,7 +446,7 @@ class PhononManager:
             self.normal_modes[f'{q_val}'] = []
 
             # compute normal modes with generator
-            for mode in self.gen_NormalModes(HBAR, BETA, coords, q_val):
+            for mode in self.gen_NormalModes(HBAR, BETA, coords, q_val, pos_conv, mass_conv):
                 self.normal_modes[f'{q_val}'].append(mode)
 
     #----------------------------------------------------------------------------------------------------------------#
