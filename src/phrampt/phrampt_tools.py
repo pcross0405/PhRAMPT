@@ -395,7 +395,7 @@ class PhononManager:
                 # calculate displacement and append to normal_modes dictionary
                 c = amp/(2*np.sqrt(mass))
                 disp = c*(vecs[j]*np.exp(1j*np.dot(q_val, pos)) + np.conj(vecs[j])*np.exp(-1j*np.dot(q_val, pos)))
-                id_disp = [int(atom_id) + 1, disp]
+                id_disp = (int(atom_id) + 1, disp)
                 yield id_disp
 
     #----------------------------------------------------------------------------------------------------------------#
@@ -404,7 +404,7 @@ class PhononManager:
     def NormalModes(self):
 
         # define some constants for later calculations
-        # hbar has units of joules seconds
+        # hbar is the reduced Planck constant with units joules second
         # beta is 1 over the Boltzmann constant times temperature (300 K since we are assuming room temperature)
         HBAR = 1.054571817*10**(-34)
         BETA = 1/(1.380649*10**(-23)*300)
@@ -698,12 +698,12 @@ class Pairwise(PhononManager):
     # method that serves as shortcut for calling methods needed for calculating frequencies
     def Calc(self):
 
+        # make super cell based off of specification
+        self.MakeSupercell()
+
         # check if parallel calc 
         if self.parallel == True:
             from . import parallel_phrampt as pp
-
-            # make super cell based off of specification
-            self.MakeSupercell()
             
             # get force constants and interatomic distances
             self._force_constants, self._inter_dists = pp.make_parallel(self._infile, 
@@ -718,9 +718,6 @@ class Pairwise(PhononManager):
 
         # serial calc
         else:
-
-            # make super cell based off of specification
-            self.MakeSupercell()
 
             # get force contants and interatomic distances, construct dynamical matrices, compute frequencies
             self.CFCM()
@@ -837,12 +834,12 @@ class General(PhononManager):
     # method that serves as shortcut for calling methods needed for calculating frequencies
     def Calc(self):
 
+        # make super cell based off of specification
+        self.MakeSupercell()
+
         # check if parallel calc 
         if self.parallel == True:
             from . import parallel_phrampt as pp
-
-            # make super cell based off of specification
-            self.MakeSupercell()
 
             # get force constants and interatomic distances
             self._force_constants, self._inter_dists = pp.make_parallel(self._infile, 
@@ -857,9 +854,6 @@ class General(PhononManager):
 
         # serial calc
         else:
-
-            # make super cell based off of specification
-            self.MakeSupercell()
 
             # get force contants and interatomic distances, construct dynamical matrices, compute frequencies
             self.CFCM()
