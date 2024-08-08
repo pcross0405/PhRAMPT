@@ -1,13 +1,13 @@
-#-------------------------------------------------------------------------------------------------------------------#
-#----------------- Tool for comparing machine-learned potential phonon plots to DFT phonon plots -------------------#
-#-------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------#
+#----------------- Tool for comparing machine-learned potential phonon plots to DFT phonon plots ---------------------#
+#---------------------------------------------------------------------------------------------------------------------#
 
 import numpy as np
 from lammps import lammps, LMP_STYLE_ATOM, LMP_TYPE_ARRAY, LMP_STYLE_GLOBAL, LMP_TYPE_VECTOR
 
-#--------------------------------------------------------------------------------------------------------------------#
-#-------------------------------------------------- CLASS START -----------------------------------------------------#
-#--------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------- CLASS START ------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------#
 
 # class for managing phonon calculation within LAMMPS
 class PhononManager:
@@ -96,9 +96,9 @@ class PhononManager:
         else:
             raise SystemExit(f'The {units} units style is not supported. Please change to metal, real, or si units.')
 
-    #----------------------------------------------------------------------------------------------------------------#
-    #----------------------------------------------------- METHODS --------------------------------------------------#
-    #----------------------------------------------------------------------------------------------------------------#    
+    #-----------------------------------------------------------------------------------------------------------------#
+    #----------------------------------------------------- METHODS ---------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#    
 
     # method for displacing atoms and fetching resulting potential energy
     def _DispAtoms(self, atom1_id, atom2_id):
@@ -107,7 +107,7 @@ class PhononManager:
         # see subclasses at end of script
         pass
     
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # method for calculating interatomic distance
     def _PairDist(self, other_atom, center_atom):
@@ -137,7 +137,7 @@ class PhononManager:
         # update interatomic distances dictionary
         self._inter_dists[f'{atom2}_{atom1}'].append(dist_comps)
     
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # method for displacing atoms and Constructing Force Constant Matrix (CFCM)
     def _CFCM(self):
@@ -170,7 +170,7 @@ class PhononManager:
                 # store force constant matrix (fcm) in force constants dictionary
                 self._force_constants[f'{atom2}_{atom1}'].append(fcm)
 
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # method for computing force constants from self interactions
     def _AcousticSum(self):
@@ -191,7 +191,7 @@ class PhononManager:
                 force_on_self = 0
                 count = 0 
 
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # method for interpolating reciprocal space path
     def _KPath(self):
@@ -271,7 +271,7 @@ class PhononManager:
 
             self.klist = cat_pts[to_be_del]
 
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # method for Constructing Dynamical Matrix (CDM)
     def _CDM(self):
@@ -317,7 +317,7 @@ class PhononManager:
                 i2 = index2 % self._natoms
                 self.d_matrices[f'{q_val}'][3*(i1):3*(i1)+3, 3*(i2):3*(i2)+3] = d_elements
 
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
     
     # method for Finding Frequencies From Path (F3P)
     def _F3P(self):
@@ -341,7 +341,7 @@ class PhononManager:
                     freq_vals[branch] = np.sqrt(freq*self._conversion)
                     self.frequencies[f'{branch}'].append(freq_vals[branch])
     
-    #----------------------------------------------------------------------------------------------------------------#  
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # method that serves as shortcut for calling methods needed for calculating frequencies
     def Calc(self):
@@ -350,7 +350,7 @@ class PhononManager:
         # see subclasses at end of script
         pass
 
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # generator for NormalModes method
     def gen_NormalModes(self, HBAR, BETA, coords, q_val, pos_conv, mass_conv):
@@ -399,7 +399,7 @@ class PhononManager:
                 id_disp = (int(atom_id) + 1, disp)
                 yield id_disp
 
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # method for finding normal modes from eigenvectors of dynamical matrices
     def NormalModes(self):
@@ -449,7 +449,7 @@ class PhononManager:
             for mode in self.gen_NormalModes(HBAR, BETA, coords, q_val, pos_conv, mass_conv):
                 self.normal_modes[f'{q_val}'].append(mode)
 
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # method for constructing supercell in LAMMPS
     def MakeSupercell(self):
@@ -497,14 +497,14 @@ class PhononManager:
         for i in all_array:
             self._all_info[f'{int(i[0]) - 1}'] = [i[1], i[2]]
 
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # method for interpolating frequencies after sampling entire brillouin zone
     # use this after calling obj.Calc() with default self.klist = 'all' to interpolate frequencies along any path
     def Interpolate(self, _kpath=None):
         pass
 
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # method for extracting phonon frequencies from vaspout.h5 file
     def ReadVasp_h5(self, path='.', h5_file=None):
@@ -526,7 +526,7 @@ class PhononManager:
             for branch in phonon_dict['bands']:
                 self.dft_frequencies.append(branch[i])
 
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
     
     # method for plotting with matplotlib
     def Plot_mpl(
@@ -610,13 +610,166 @@ class PhononManager:
         plt.margins(x=0)
         plt.savefig(file_name, dpi=dpi)
 
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # method for plotting with plotly
     def Plot_plotly(self):
         pass
 
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
+
+    # method for writing normal modes to JSON file to be visualized at https://interactivephonon.materialscloud.io/
+    def Write_json(self, file_name='phononvis.json'):
+        '''
+        Method for writing normal modes to JSON file for visualization.
+        JSON file can be visualized @ https://interactivephonon.materialscloud.io/
+        
+        Parameters
+        ----------
+        file_name : str
+            Sets name of JSON file
+        '''
+
+        # see https://interactivephonon.materialscloud.io/compute/input_help/#phononvis-json for JSON format
+        json_dict = {
+            'name':self._infile,
+            'natoms':self._natoms,
+            'lattice':None,
+            'atom_types':[],
+            'atom_numbers':[],
+            'formula':None,
+            'repititions':self.make_supercell,
+            'atom_pos_car':[],
+            'atom_pos_red':[],
+            'highsym_qpts':[],
+            'qpoints':[],
+            'distances':[],
+            'eigenvalues':[],
+            'vectors':[]
+        }
+
+        # create variables for real space lattice vectors since many of following functions will use these
+        a = np.array([self._lat_params[1][0] - self._lat_params[0][0], 0.0, 0.0])
+        b = np.array([self._lat_params[2], self._lat_params[1][1] - self._lat_params[0][1], 0.0])
+        c = np.array([self._lat_params[4], self._lat_params[3], self._lat_params[1][2] - self._lat_params[0][2]])
+
+        # function to update lattice key in json_dict
+        def _update_lattice():
+            return [a.tolist(), b.tolist(), c.tolist()]
+        
+        # function to update atom_types and atom_numbers in json_dict
+        # attempts to do so based off of provided masses since LAMMPS does not really track atoms by elemental label
+        def _update_atoms():
+            atom_labels = ['H', 'He', 'Li', 'Be', 'B',
+                           'C', 'N', 'O', 'F', 'Ne',
+                           'Na', 'Mg', 'Al', 'Si', 'P',
+                           'S', 'Cl', 'Ar', 'K', 'Ca',
+                           'Sc', 'Ti', 'V', 'Cr', 'Mn',
+                           'Fe', 'Co', 'Ni', 'Cu', 'Zn',
+                           'Ga', 'Ge', 'As', 'Se', 'Br',
+                           'Kr', 'Rb', 'Sr', 'Y', 'Zr',
+                           'Nb', 'Mo', 'Tc', 'Ru', 'Rh',
+                           'Pd', 'Ag', 'Cd', 'In', 'Sn',
+                           'Sb', 'Te', 'I', 'Xe', 'Cs',
+                           'Ba', 'La', 'Ce', 'Pr', 'Nd',
+                           'Pm', 'Sm', 'Eu', 'Gd', 'Tb',
+                           'Dy', 'Ho', 'Er', 'Tm', 'Yb',
+                           'Lu', 'Hf', 'Ta', 'W', 'Re',
+                           'Os', 'Ir', 'Pt', 'Au', 'Hg',
+                           'Tl', 'Pb', 'Bi', 'Po', 'At',
+                           'Rn', 'Fr', 'Ra', 'Ac', 'Th',
+                           'Pa', 'U']
+            atom_masses = np.array([1.008, 4.003, 6.941, 9.0122, 10.811,
+                           12.011, 14.007, 15.999, 18.998, 20.18,
+                           22.99, 24.305, 26.982, 28.086, 30.974,
+                           32.065, 35.453, 39.948, 39.098, 40.076,
+                           44.956, 47.867, 50.943, 51.996, 54.938,
+                           55.845, 58.993, 58.693, 63.546, 65.409,
+                           69.723, 72.64, 74.922, 78.96, 79.904,
+                           83.798, 85.468, 87.62, 88.906, 91.224,
+                           92.906, 95.94, 98, 101.07, 102.906,
+                           106.42, 107.868, 112.411, 114.818, 118.71,
+                           121.76, 127.6, 126.904, 131.293, 132.905,
+                           137.327, 138.906, 140.116, 140.908, 144.24,
+                           145, 150.36, 151.964, 157.25, 158.925,
+                           162.5, 164.93, 167.259, 168.934, 173.04,
+                           174.967, 178.49, 180.948, 183.84, 186.207,
+                           190.23, 192.217, 195.078, 196.967, 200.59,
+                           204.383, 207.2, 208.98, 209, 210,
+                           222, 223, 226, 227, 232.038,
+                           231.036, 238.029])
+            
+            # loop through all atoms
+            # subtract mass from array of masses, find index of what value is closest to zero
+            elements = []
+            atomic_num = []
+            for atom in self._center_info:
+                mass = self._center_info[atom][1]
+                i = np.argmin(abs(atom_masses - mass))
+                elements.append(atom_labels[i])
+                atomic_num.append(i+1)
+
+            # find formula based off of recurrence of elements
+            formula = ''
+            for label in list(set(elements)):
+                count = len([_ for _ in elements if _ == label])
+                formula += label + f'{count}'
+
+            return elements, atomic_num, formula
+
+        # fetch atomic positions and update json_dict
+        def _update_pos():
+
+            # get list of all atom ids, subtract one since LAMMPS indexes IDs from 1
+            ids = list(self._lmp.numpy.extract_atom('id').astype(np.float64) - 1)
+
+            # get list of all atom coordinates
+            positions = list(self._lmp.numpy.extract_atom('x').astype(np.float64))
+
+            # loop through atoms
+            pos_car = []
+            for atom in self._center_info:
+                id_index = ids.index(int(atom))
+                pos_car.append(positions[id_index])
+
+            # find reduced positions
+            lat_lens = np.array([np.linalg.norm(a), np.linalg.norm(b), np.linalg.norm(c)])
+            pos_red = []
+            for pos in pos_car:
+                red = np.divide(pos, lat_lens)
+                pos_red.append(red)
+
+            return pos_car, pos_red
+        
+        # function for assigning qpts and highsym_qpts in json_dict
+        def _update_qpts():
+        
+            # find reciprocal lattice vectors
+            b1 = 2*np.pi*(np.cross(b,c))/np.dot(a,np.cross(b,c))
+            b2 = 2*np.pi*(np.cross(c,a))/np.dot(a,np.cross(b,c))
+            b3 = 2*np.pi*(np.cross(a,b))/np.dot(a,np.cross(b,c))
+            rec_lat_lens = np.array([np.linalg.norm(b1), np.linalg.norm(b2), np.linalg.norm(b3)])
+
+            # find reduced q points
+            qpts = []
+            for point in self.klist:
+                qpts_red = np.divide(point, rec_lat_lens)
+                qpts.append(qpts_red)
+                
+            # find index and label of high symmetry q points in klist
+            highsym_qpts = []
+            kpoints = self.klist.tolist()
+            for i, point in enumerate(self._hi_sym_pts):
+                ind = kpoints.index(point.tolist())
+                label = self._knames[i]
+                highsym_qpts.append([ind, label])
+            
+            return highsym_qpts, qpts
+        
+
+
+
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # method for saving calculation as binary
     def SaveCalc(self, file_name='SaveFile.pkl'):
@@ -639,7 +792,7 @@ class PhononManager:
             pickle.dump(self.d_matrices, f)
             pickle.dump(self.frequencies, f)
 
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # method for loading dictionaries from previous calculation
     def LoadCalc(self, file_name='SaveFile.pkl'):
@@ -662,13 +815,13 @@ class PhononManager:
             self.d_matrices = pickle.load(f)
             self.frequencies = pickle.load(f)
 
-#--------------------------------------------------------------------------------------------------------------------#
-#--------------------------------------------------- CLASS END ------------------------------------------------------#
-#--------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------#
+#--------------------------------------------------- CLASS END -------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------#
 
-#--------------------------------------------------------------------------------------------------------------------#
-#-------------------------------------------------- CLASS START -----------------------------------------------------#
-#--------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------- CLASS START ------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------#
 
 # this class will compute phonon frequencies by finding pairwise forces between displaced atoms
 # this method is faster, but requires a pairwise potential and will not work for multi-body potentials
@@ -705,9 +858,9 @@ class Pairwise(PhononManager):
         Interpolates frequencies along any reciprocal space path if entire brillouin zone was sampled
     '''
 
-    #----------------------------------------------------------------------------------------------------------------#
-    #----------------------------------------------------- METHODS --------------------------------------------------#
-    #----------------------------------------------------------------------------------------------------------------#  
+    #-----------------------------------------------------------------------------------------------------------------#
+    #----------------------------------------------------- METHODS ---------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#  
 
     # method that serves as shortcut for calling methods needed for calculating frequencies
     def Calc(self):
@@ -739,7 +892,7 @@ class Pairwise(PhononManager):
             self._CDM()
             self._F3P()
 
-    #----------------------------------------------------------------------------------------------------------------# 
+    #-----------------------------------------------------------------------------------------------------------------# 
 
     # method for displacing atoms and fetching resulting potential energy
     def _DispAtoms(self, atom1_id, atom2_id):
@@ -800,13 +953,13 @@ class Pairwise(PhononManager):
 
         return fcm
     
-#--------------------------------------------------------------------------------------------------------------------#
-#--------------------------------------------------- CLASS END ------------------------------------------------------#
-#--------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------#
+#--------------------------------------------------- CLASS END -------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------#
 
-#--------------------------------------------------------------------------------------------------------------------#
-#-------------------------------------------------- CLASS START -----------------------------------------------------#
-#--------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------#
+#-------------------------------------------------- CLASS START ------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------#
 
 class General(PhononManager):
     '''
@@ -841,9 +994,9 @@ class General(PhononManager):
         Interpolates frequencies along any reciprocal space path if entire brillouin zone was sampled
     '''
 
-    #----------------------------------------------------------------------------------------------------------------#
-    #----------------------------------------------------- METHODS --------------------------------------------------#
-    #----------------------------------------------------------------------------------------------------------------# 
+    #-----------------------------------------------------------------------------------------------------------------#
+    #----------------------------------------------------- METHODS ---------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------# 
 
     # method that serves as shortcut for calling methods needed for calculating frequencies
     def Calc(self):
@@ -875,7 +1028,7 @@ class General(PhononManager):
             self._CDM()
             self._F3P()
 
-    #----------------------------------------------------------------------------------------------------------------# 
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # method for displacing atoms and fetching resulting potential energy
     def _DispAtom2(self):
@@ -919,7 +1072,7 @@ class General(PhononManager):
 
         return force_vec
     
-    #----------------------------------------------------------------------------------------------------------------#
+    #-----------------------------------------------------------------------------------------------------------------#
 
     # method for displacing atoms and fetching resulting potential energy
     def _DispAtoms(self, atom1_id, atom2_id):
@@ -978,6 +1131,6 @@ class General(PhononManager):
 
         return fcm
     
-#--------------------------------------------------------------------------------------------------------------------#
-#--------------------------------------------------- CLASS END ------------------------------------------------------#
-#--------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------#
+#--------------------------------------------------- CLASS END -------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------#
