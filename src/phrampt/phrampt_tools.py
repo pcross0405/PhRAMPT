@@ -62,7 +62,7 @@ class PhononManager:
         # can use klist = 'all' to sample entire brillouin zone
         # h, k, and l define how finely brillouin zone is sampled when using 'all'
         # if h, k, or l remain None the fineness of that dimesion is automatically determined
-        # see KPath method for more details on fineness determination
+        # see _KPath method for more details on fineness determination
         self.klist = 'all'
         self.hkl = None
         self._hi_sym_pts = None
@@ -101,7 +101,7 @@ class PhononManager:
     #----------------------------------------------------------------------------------------------------------------#    
 
     # method for displacing atoms and fetching resulting potential energy
-    def DispAtoms(self, atom1_id, atom2_id):
+    def _DispAtoms(self, atom1_id, atom2_id):
 
         # this method will be overwritten by the subclasses classes
         # see subclasses at end of script
@@ -110,7 +110,7 @@ class PhononManager:
     #----------------------------------------------------------------------------------------------------------------#
 
     # method for calculating interatomic distance
-    def PairDist(self, other_atom, center_atom):
+    def _PairDist(self, other_atom, center_atom):
 
         # use modulo to append distance to correct list in dictionary
         atom1 = int(center_atom) % self._natoms
@@ -140,7 +140,7 @@ class PhononManager:
     #----------------------------------------------------------------------------------------------------------------#
 
     # method for displacing atoms and Constructing Force Constant Matrix (CFCM)
-    def CFCM(self):
+    def _CFCM(self):
 
         # create empty lists for appending to later
         for center_atom1 in self._center_info:
@@ -164,8 +164,8 @@ class PhononManager:
                     continue
 
                 # find interatomic distance for calculating phonon frequencies later on
-                self.PairDist(other_atom, center_atom)
-                fcm = self.DispAtoms(other_atom, center_atom)
+                self._PairDist(other_atom, center_atom)
+                fcm = self._DispAtoms(other_atom, center_atom)
                 
                 # store force constant matrix (fcm) in force constants dictionary
                 self._force_constants[f'{atom2}_{atom1}'].append(fcm)
@@ -173,7 +173,7 @@ class PhononManager:
     #----------------------------------------------------------------------------------------------------------------#
 
     # method for computing force constants from self interactions
-    def AcousticSum(self):
+    def _AcousticSum(self):
 
         # compute self interaction according to acoustic sum rule
         # force matrices between the same atoms are compute as the negative sum of the other force matrices
@@ -194,7 +194,7 @@ class PhononManager:
     #----------------------------------------------------------------------------------------------------------------#
 
     # method for interpolating reciprocal space path
-    def KPath(self):
+    def _KPath(self):
 
         # create variables for real space lattice vectors
         a = np.array([self._lat_params[1][0] - self._lat_params[0][0], 0.0, 0.0])
@@ -274,10 +274,10 @@ class PhononManager:
     #----------------------------------------------------------------------------------------------------------------#
 
     # method for Constructing Dynamical Matrix (CDM)
-    def CDM(self):
+    def _CDM(self):
 
         # generate points along reciprocal space path
-        self.KPath()
+        self._KPath()
 
         # compute how many unit cells there are
         cell_range = self.make_supercell[0]*self.make_supercell[1]*self.make_supercell[2]
@@ -320,7 +320,7 @@ class PhononManager:
     #----------------------------------------------------------------------------------------------------------------#
     
     # method for Finding Frequencies From Path (F3P)
-    def F3P(self):
+    def _F3P(self):
 
         # there are 3 times the number of atoms of branches in phonon dispersion
         for branch in range(3*self._natoms):
@@ -501,7 +501,7 @@ class PhononManager:
 
     # method for interpolating frequencies after sampling entire brillouin zone
     # use this after calling obj.Calc() with default self.klist = 'all' to interpolate frequencies along any path
-    def Interpolate(self, kpath=None):
+    def Interpolate(self, _kpath=None):
         pass
 
     #----------------------------------------------------------------------------------------------------------------#
@@ -701,7 +701,7 @@ class Pairwise(PhononManager):
         Saves frequencies and dynamical matrices to binary
     LoadCalc('SaveFile.pkl)
         Loads freqencies and dynamical matrices from binary
-    Interpolate(kpath=None)
+    Interpolate(_kpath=None)
         Interpolates frequencies along any reciprocal space path if entire brillouin zone was sampled
     '''
 
@@ -726,23 +726,23 @@ class Pairwise(PhononManager):
                                                                         'pairwise')
             
             # find self interaction force constants, construct dynamical matrices, and compute frequencies
-            self.AcousticSum()
-            self.CDM()
-            self.F3P()
+            self._AcousticSum()
+            self._CDM()
+            self._F3P()
 
         # serial calc
         else:
 
             # get force contants and interatomic distances, construct dynamical matrices, compute frequencies
-            self.CFCM()
-            self.AcousticSum()
-            self.CDM()
-            self.F3P()
+            self._CFCM()
+            self._AcousticSum()
+            self._CDM()
+            self._F3P()
 
     #----------------------------------------------------------------------------------------------------------------# 
 
     # method for displacing atoms and fetching resulting potential energy
-    def DispAtoms(self, atom1_id, atom2_id):
+    def _DispAtoms(self, atom1_id, atom2_id):
 
         # create LAMMPS group for atoms 1 and 2
         # add back 1 since it was removed earlier to match 0 based indexing of python
@@ -837,7 +837,7 @@ class General(PhononManager):
         Saves frequencies and dynamical matrices to binary
     LoadCalc('SaveFile.pkl)
         Loads freqencies and dynamical matrices from binary
-    Interpolate(kpath=None)
+    Interpolate(_kpath=None)
         Interpolates frequencies along any reciprocal space path if entire brillouin zone was sampled
     '''
 
@@ -862,23 +862,23 @@ class General(PhononManager):
                                                                         'general')
             
             # find self interaction force constants, construct dynamical matrices, and compute frequencies
-            self.AcousticSum()
-            self.CDM()
-            self.F3P()
+            self._AcousticSum()
+            self._CDM()
+            self._F3P()
 
         # serial calc
         else:
 
             # get force contants and interatomic distances, construct dynamical matrices, compute frequencies
-            self.CFCM()
-            self.AcousticSum()
-            self.CDM()
-            self.F3P()
+            self._CFCM()
+            self._AcousticSum()
+            self._CDM()
+            self._F3P()
 
     #----------------------------------------------------------------------------------------------------------------# 
 
     # method for displacing atoms and fetching resulting potential energy
-    def DispAtom2(self):
+    def _DispAtom2(self):
 
         # create list for atom1 displacements
         disp = [0, 0, self.displacement]
@@ -922,7 +922,7 @@ class General(PhononManager):
     #----------------------------------------------------------------------------------------------------------------#
 
     # method for displacing atoms and fetching resulting potential energy
-    def DispAtoms(self, atom1_id, atom2_id):
+    def _DispAtoms(self, atom1_id, atom2_id):
 
         # create LAMMPS group for atoms 1 and 2
         # add back 1 since it was removed earlier to match 0 based indexing of python
@@ -953,7 +953,7 @@ class General(PhononManager):
                 ''')
             
             # find interatomic forces after displacement
-            positive_disp_forces = self.DispAtom2()
+            positive_disp_forces = self._DispAtom2()
 
             # displace atom1 in negative direction
             self._lmp.commands_string(f'''
@@ -962,7 +962,7 @@ class General(PhononManager):
                 ''')
 
             # find interatomic forces after displacement
-            negative_disp_forces = self.DispAtom2()
+            negative_disp_forces = self._DispAtom2()
 
             # update force constant matrix
             fcm[i,:] = -(1/(2*self.displacement))*(positive_disp_forces - negative_disp_forces)
