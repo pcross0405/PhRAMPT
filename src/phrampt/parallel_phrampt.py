@@ -41,7 +41,7 @@ def parallel_Calc(in_file, natoms, procs, make_supercell, methodname, proc_num):
     
     # make super cell based off of specification
     new_calc.make_supercell = make_supercell
-    new_calc.MakeSupercell()
+    new_calc._MakeSupercell()
 
     # find total number of atoms already assigned to processors
     total_atoms = 0
@@ -58,7 +58,7 @@ def parallel_Calc(in_file, natoms, procs, make_supercell, methodname, proc_num):
     new_calc._center_info = center_info_temp
 
     # calculate force constants for assigned atoms
-    new_calc.CFCM()
+    new_calc._CFCM()
 
     # close lammps after calculation finishes
     new_calc._lmp.close()

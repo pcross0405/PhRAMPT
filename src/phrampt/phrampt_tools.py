@@ -391,7 +391,7 @@ class PhononManager:
     #-----------------------------------------------------------------------------------------------------------------#
 
     # method for constructing supercell in LAMMPS
-    def MakeSupercell(self):
+    def _MakeSupercell(self):
 
         # use LAMMPS command to create supercell
         self._lmp.command(f'replicate {self.make_supercell[0]} {self.make_supercell[1]} {self.make_supercell[2]}')
@@ -861,7 +861,7 @@ class Pairwise(PhononManager):
     def Calc(self):
 
         # make super cell based off of specification
-        self.MakeSupercell()
+        self._MakeSupercell()
 
         # check if parallel calc 
         if self.parallel == True:
@@ -997,7 +997,7 @@ class General(PhononManager):
     def Calc(self):
 
         # make super cell based off of specification
-        self.MakeSupercell()
+        self._MakeSupercell()
 
         # check if parallel calc 
         if self.parallel == True:
