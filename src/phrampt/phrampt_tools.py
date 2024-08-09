@@ -334,12 +334,8 @@ class PhononManager:
             # imaginary frequencies are made negative for plotting purposes
             # organize frequencies into respective branch
             for branch, freq in enumerate(freq_vals):
-                if freq < 0:
-                    freq_vals[branch] = -1*np.sqrt(-1*freq*self._conversion)
-                    self.frequencies[f'{branch}'].append(freq_vals[branch])
-                else:
-                    freq_vals[branch] = np.sqrt(freq*self._conversion)
-                    self.frequencies[f'{branch}'].append(freq_vals[branch])
+                freq_vals[branch] = np.sqrt(abs(freq)*self._conversion)*np.sign(freq)
+                self.frequencies[f'{branch}'].append(freq_vals[branch])
     
     #-----------------------------------------------------------------------------------------------------------------#
 
@@ -352,92 +348,15 @@ class PhononManager:
 
     #-----------------------------------------------------------------------------------------------------------------#
 
-    # generator for NormalModes method
-    def gen_NormalModes(self, HBAR, BETA, coords, q_val, pos_conv, mass_conv):
-
-        # get frequencies and eigenvectors from dynamical matrices
-        eig_vals, eig_vecs = np.linalg.eigh(self.d_matrices[f'{q_val}'])    
-
-        # reorganize eig_vecs according numpy documentation
-        eig_vecs = [eig_vecs[:,i] for i in range(len(eig_vecs))]
-
-        # make tuple of corresponding vals and vecs
-        eig_vals_and_vecs = list(zip(eig_vals, eig_vecs))
-
-        # loop through vals and vecs
-        for val_and_vec in eig_vals_and_vecs:
-
-            # fetch frequency, convert from THz to Hz
-            freq = val_and_vec[0]
-            if freq < 0:
-                freq = -1*np.sqrt(-1*freq*self._conversion)*10**12
-            else:
-                freq = np.sqrt(freq*self._conversion)*10**12
-
-            # first calculate amplitude of mode
-            # amplitude = sqrt((2(n+1/2)hbar)/(mw)) where n is phonon occupation from Bose-Einstein distribution
-            # m is mass, and w is frequency
-            phon_occ = np.reciprocal(np.exp(HBAR*freq*BETA) - 1)
-            amp = np.sqrt(2*(phon_occ + 1/2)*HBAR/freq)
-
-            # split up eigenvectors into atomic components
-            vecs = np.split(val_and_vec[1], self._natoms)
-
-            # loop through each atom finding its normal mode displacements
-            for j, atom_id in enumerate(self._center_info):
-
-                # mass may be in g/mol, convert to kg
-                mass = self._center_info[atom_id][1]*mass_conv
-
-                # positions may be in Angstrom, convert to meters
-                pos = coords[f'{atom_id}']*pos_conv
-
-                # calculate displacement and append to normal_modes dictionary
-                # 10**10 in c is a conversion from meters to Angstroms
-                c = amp/(2*np.sqrt(mass))*10**(10)
-                disp = c*(vecs[j]*np.exp(1j*np.dot(q_val, pos)) + np.conj(vecs[j])*np.exp(-1j*np.dot(q_val, pos)))
-                id_disp = (int(atom_id) + 1, disp)
-                yield id_disp
-
-    #-----------------------------------------------------------------------------------------------------------------#
-
     # method for finding normal modes from eigenvectors of dynamical matrices
     def NormalModes(self):
 
-        # define some constants for later calculations
-        # hbar is the reduced Planck constant with units joules second
-        # beta is 1 over the Boltzmann constant times temperature (300 K since we are assuming room temperature)
-        HBAR = 1.054571817*10**(-34)
-        BETA = 1/(1.380649*10**(-23)*300)
-
-        units = self._lmp.extract_global('units')
-        if units == 'metal':
-            pos_conv = 10**(-10)
-            mass_conv = 1.660539067*10**(-27)
-
-        elif units == 'real':
-            pos_conv = 10**(-10)
-            mass_conv = 1.660539067*10**(-27)
-
-        elif units == 'si':
-            pos_conv = 1
-            mass_conv = 1
-
-        # find atom positions
-        coords = {}
-        for atom_id in self._center_info:
-
-            # fetch atom ids from LAMMPS
-            ids = list(self._lmp.numpy.extract_atom('id').astype(np.float64) - 1)
-
-            # find index of atom in id list
-            ind = ids.index(int(atom_id))
-
-            # get list of all atom coordinates
-            positions = list(self._lmp.numpy.extract_atom('x').astype(np.float64))
-
-            # get coordinates of both atoms using indices from id list
-            coords[f'{atom_id}'] = positions[ind]
+        # find atomic ids and inverse root of masses
+        atom_ids = np.zeros(self._natoms)
+        masses = np.zeros(self._natoms)
+        for i, atom in enumerate(self._center_info):
+            atom_ids[i] = int(atom)
+            masses[i] = np.reciprocal(np.sqrt(self._center_info[atom][1]))
 
         # loop over reciprocal space points since there is a normal mode for each point
         for q_val in self.klist:
@@ -445,9 +364,29 @@ class PhononManager:
             # update dictionary
             self.normal_modes[f'{q_val}'] = []
 
-            # compute normal modes with generator
-            for mode in self.gen_NormalModes(HBAR, BETA, coords, q_val, pos_conv, mass_conv):
-                self.normal_modes[f'{q_val}'].append(mode)
+            # compute eigenvectors
+            eig_vals, eig_vecs = np.linalg.eigh(self.d_matrices[f'{q_val}'])
+
+            # reorganize eigenvectors according to numpy documentation
+            eig_vecs = [eig_vecs[:,i] for i in range(len(eig_vecs))]
+
+            # tuple of vals and vecs
+            eig_vals_and_vecs = list(zip(eig_vals, eig_vecs))
+
+            # loop through tuple to convert vals and vecs to correct units
+            for val_and_vec in eig_vals_and_vecs:
+
+                # convert frequencies to THz, aka eig_vals
+                freq = val_and_vec[0]
+                freq = np.sqrt(abs(freq)*self._conversion)*np.sign(freq)
+
+                # split up eigenvector into smaller vectors of length 3 for each atom
+                # scale eigenvectors by masses
+                vecs = np.split(val_and_vec[1], self._natoms)
+                vecs = vecs*masses
+
+                # append to normal modes dictionary
+                self.normal_modes[f'{q_val}'].append(freq, atom_ids, vecs)
 
     #-----------------------------------------------------------------------------------------------------------------#
 
@@ -630,6 +569,8 @@ class PhononManager:
             Sets name of JSON file
         '''
 
+        import json
+
         # see https://interactivephonon.materialscloud.io/compute/input_help/#phononvis-json for JSON format
         json_dict = {
             'name':self._infile,
@@ -733,27 +674,29 @@ class PhononManager:
                 pos_car.append(positions[id_index])
 
             # find reduced positions
-            lat_lens = np.array([np.linalg.norm(a), np.linalg.norm(b), np.linalg.norm(c)])
+            lat_mat = np.array([a,b,c])
+            inv_mat = np.linalg.inv(lat_mat)
             pos_red = []
             for pos in pos_car:
-                red = np.divide(pos, lat_lens)
+                red = np.matmul(pos, inv_mat)
                 pos_red.append(red)
 
             return pos_car, pos_red
         
-        # function for assigning qpts and highsym_qpts in json_dict
+        # function for assigning qpts, highsym_qpts, and distances between qpts in json_dict
         def _update_qpts():
         
             # find reciprocal lattice vectors
             b1 = 2*np.pi*(np.cross(b,c))/np.dot(a,np.cross(b,c))
             b2 = 2*np.pi*(np.cross(c,a))/np.dot(a,np.cross(b,c))
             b3 = 2*np.pi*(np.cross(a,b))/np.dot(a,np.cross(b,c))
-            rec_lat_lens = np.array([np.linalg.norm(b1), np.linalg.norm(b2), np.linalg.norm(b3)])
+            rec_mat = np.array([b1,b2,b3])
+            inv_mat = np.linalg.inv(rec_mat)
 
             # find reduced q points
             qpts = []
             for point in self.klist:
-                qpts_red = np.divide(point, rec_lat_lens)
+                qpts_red = np.matmul(point, inv_mat)
                 qpts.append(qpts_red)
                 
             # find index and label of high symmetry q points in klist
@@ -763,11 +706,63 @@ class PhononManager:
                 ind = kpoints.index(point.tolist())
                 label = self._knames[i]
                 highsym_qpts.append([ind, label])
+
+            # find distances between qpts
+            # distances are reduced by 2pi for some reason unknown to me
+            # distances are also calculated as distance between high symmetry point and all 
+            # points between until the next high symmetry point
+            # the next distances add on to the distances of the previous high symmetry point
+            # idk why this is how "distances" are specified, but that's what is needed to work with this json
+            distances = []
+            count = 1
+            last_val = 0
+            ind = 0
+            for i, point in enumerate(self.klist):
+                if i - 1 == highsym_qpts[count][0]:
+                    count += 1
+                    ind = i - 1
+                    last_val = cur_val
+                p1 = self.klist[ind]
+                p2 = self.klist[i]
+                cur_val = np.linalg.norm(p1 - p2)/(2*np.pi) + last_val
+                distances.append(cur_val)
             
-            return highsym_qpts, qpts
+            return highsym_qpts, qpts, distances
         
+        # function for updating eigenvalues and eigenvectors in json_dict
+        def _update_vals_and_vecs():
 
+            # speed of light in cm/s for converting THz -> cm^-1
+            SOL = 29979245800
 
+            # create lists for values and vectors
+            eigenvalues = []
+            vectors = []
+
+            # loop through vals and vecs
+            for val_and_vec in self.normal_modes:
+                val = val_and_vec[0]
+                vec = val_and_vec[2]
+
+                # values need to be in units of cm^-1, currently in THz
+                val = val*10**12/SOL
+
+                # vectors are already formatted correctly
+                eigenvalues.append(val)
+                vectors.append(vec)
+
+            return eigenvalues, vectors
+        
+        # use functions to assign values to json_dict
+        json_dict['lattice'] = _update_lattice()
+        json_dict['atom_types'], json_dict['atom_numbers'], json_dict['formula'] = _update_atoms()
+        json_dict['atom_pos_car'], json_dict['atom_pos_red'] = _update_pos()
+        json_dict['highsym_qpts'], json_dict['qpoints'], json_dict['distances'] = _update_qpts()
+        json_dict['eigenvalues'], json_dict['vectors'] = _update_vals_and_vecs()
+
+        # dump json_dict to json file
+        with open(file_name, 'w') as json_file:
+            json.dump(json_dict, json_file, indent=4)
 
     #-----------------------------------------------------------------------------------------------------------------#
 
