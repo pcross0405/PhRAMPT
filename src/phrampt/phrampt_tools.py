@@ -592,8 +592,8 @@ class PhononManager:
             'highsym_qpts':None,
             'qpoints':None,
             'distances':None,
-            'eigenvalues':f'{[[a*10**12/SOL for a in self.normal_modes[k][0]] for k in self.normal_modes]}',
-            'vectors':f'{[[[[list(c) for c in zip(b.real.tolist(), b.imag.tolist())] for b in a] for a in self.normal_modes[k][2]] for k in self.normal_modes]}'
+            'eigenvalues':[[a*10**12/SOL for a in self.normal_modes[k][0]] for k in self.normal_modes],
+            'vectors':[[[[list(c) for c in zip(b.real.tolist(), b.imag.tolist())] for b in a] for a in self.normal_modes[k][2]] for k in self.normal_modes]
         }
 
         # create variables for real space lattice vectors since many of following functions will use these
@@ -708,12 +708,17 @@ class PhononManager:
                 qpts.append(qpts_red.tolist())
                 
             # find index and label of high symmetry q points in klist
+            # as points are identified, delete them to prevent repeats from getting wrong index value
+            # add back the number of points deleted to keep index value accurate
             highsym_qpts = []
             kpoints = self.klist.tolist()
+            add_back = 0
             for i, point in enumerate(self._hi_sym_pts):
                 ind = kpoints.index(point.tolist())
                 label = self._knames[i]
-                highsym_qpts.append([ind, label])
+                highsym_qpts.append([ind + add_back, label])
+                del kpoints[ind]
+                add_back += 1
 
             # find distances between qpts
             # distances are reduced by 2pi for some reason unknown to me
