@@ -205,6 +205,7 @@ class PhononManager:
         b1 = 2*np.pi*(np.cross(b,c))/np.dot(a,np.cross(b,c))
         b2 = 2*np.pi*(np.cross(c,a))/np.dot(a,np.cross(b,c))
         b3 = 2*np.pi*(np.cross(a,b))/np.dot(a,np.cross(b,c))
+        rec_lat = np.array([b1,b2,b3]).reshape((3,3))
 
         # check reciprocal space path
         # use keyword 'all' to sample over entire brillouin zone, this is the default
@@ -244,7 +245,7 @@ class PhononManager:
 
             # convert from reduced coordinates to cartesian coordinates
             for i, q in enumerate(self.klist):
-                self.klist[i] = q[0]*b1 + q[1]*b2 + q[2]*b3
+                self.klist[i] = np.matmul(q, rec_lat)
             
             # save high symmetry points for plotting later
             self._hi_sym_pts = self.klist
@@ -283,10 +284,10 @@ class PhononManager:
         cell_range = self.make_supercell[0]*self.make_supercell[1]*self.make_supercell[2]
 
         # loop over all points along recipocal space path
-        for q_val in self.klist:
+        for ind, q_val in enumerate(self.klist):
 
             # construct a dynamical matrix for each q point
-            self.d_matrices[f'{q_val}'] = np.zeros((3*self._natoms, 3*self._natoms), dtype = complex)
+            self.d_matrices[f'{q_val}_{ind}'] = np.zeros((3*self._natoms, 3*self._natoms), dtype = complex)
 
             # loop over force constant dictionary
             for i in self._force_constants:
@@ -315,7 +316,7 @@ class PhononManager:
                 # update dynamical matrix with elements
                 i1 = index1 % self._natoms
                 i2 = index2 % self._natoms
-                self.d_matrices[f'{q_val}'][3*(i1):3*(i1)+3, 3*(i2):3*(i2)+3] = d_elements
+                self.d_matrices[f'{q_val}_{ind}'][3*(i1):3*(i1)+3, 3*(i2):3*(i2)+3] = d_elements
 
     #-----------------------------------------------------------------------------------------------------------------#
     
@@ -327,8 +328,8 @@ class PhononManager:
             self.frequencies[f'{branch}'] = []
 
         # diagonalize matrices along reciprocal space path
-        for q_val in self.klist:
-            freq_vals= np.linalg.eigvalsh(self.d_matrices[f'{q_val}'])
+        for ind, q_val in enumerate(self.klist):
+            freq_vals= np.linalg.eigvalsh(self.d_matrices[f'{q_val}_{ind}'])
 
             # check sign of frequencies and convert to THz
             # imaginary frequencies are made negative for plotting purposes
@@ -353,19 +354,21 @@ class PhononManager:
 
         # find atomic ids and inverse root of masses
         atom_ids = np.zeros(self._natoms)
-        masses = np.zeros(self._natoms)
+        masses = []
         for i, atom in enumerate(self._center_info):
             atom_ids[i] = int(atom)
-            masses[i] = np.reciprocal(np.sqrt(self._center_info[atom][1]))
+            masses.append([np.reciprocal(np.sqrt(self._center_info[atom][1]))])
+
+        masses = np.array(masses)
 
         # loop over reciprocal space points since there is a normal mode for each point
-        for q_val in self.klist:
+        for ind, q_val in enumerate(self.klist):
 
             # update dictionary
-            self.normal_modes[f'{q_val}'] = []
+            self.normal_modes[f'{q_val}_{ind}'] = [[], atom_ids.tolist(), []]
 
             # compute eigenvectors
-            eig_vals, eig_vecs = np.linalg.eigh(self.d_matrices[f'{q_val}'])
+            eig_vals, eig_vecs = np.linalg.eigh(self.d_matrices[f'{q_val}_{ind}'])
 
             # reorganize eigenvectors according to numpy documentation
             eig_vecs = [eig_vecs[:,i] for i in range(len(eig_vecs))]
@@ -386,7 +389,8 @@ class PhononManager:
                 vecs = vecs*masses
 
                 # append to normal modes dictionary
-                self.normal_modes[f'{q_val}'].append(freq, atom_ids, vecs)
+                self.normal_modes[f'{q_val}_{ind}'][0].append(freq)
+                self.normal_modes[f'{q_val}_{ind}'][2].append(vecs)
 
     #-----------------------------------------------------------------------------------------------------------------#
 
@@ -571,22 +575,25 @@ class PhononManager:
 
         import json
 
+        # speed of light constant in cm/s for converting THz -> cm^-1
+        SOL = 29979245800
+
         # see https://interactivephonon.materialscloud.io/compute/input_help/#phononvis-json for JSON format
         json_dict = {
             'name':self._infile,
             'natoms':self._natoms,
             'lattice':None,
-            'atom_types':[],
-            'atom_numbers':[],
+            'atom_types':None,
+            'atom_numbers':None,
             'formula':None,
-            'repititions':self.make_supercell,
-            'atom_pos_car':[],
-            'atom_pos_red':[],
-            'highsym_qpts':[],
-            'qpoints':[],
-            'distances':[],
-            'eigenvalues':[],
-            'vectors':[]
+            'repetitions':self.make_supercell,
+            'atom_pos_car':None,
+            'atom_pos_red':None,
+            'highsym_qpts':None,
+            'qpoints':None,
+            'distances':None,
+            'eigenvalues':f'{[[a*10**12/SOL for a in self.normal_modes[k][0]] for k in self.normal_modes]}',
+            'vectors':f'{[[[[list(c) for c in zip(b.real.tolist(), b.imag.tolist())] for b in a] for a in self.normal_modes[k][2]] for k in self.normal_modes]}'
         }
 
         # create variables for real space lattice vectors since many of following functions will use these
@@ -669,9 +676,10 @@ class PhononManager:
 
             # loop through atoms
             pos_car = []
-            for atom in self._center_info:
-                id_index = ids.index(int(atom))
-                pos_car.append(positions[id_index])
+            for atom in self._all_info:
+                if int(atom) < self._natoms:
+                    id_index = ids.index(int(atom))
+                    pos_car.append(positions[id_index].tolist())
 
             # find reduced positions
             lat_mat = np.array([a,b,c])
@@ -679,7 +687,7 @@ class PhononManager:
             pos_red = []
             for pos in pos_car:
                 red = np.matmul(pos, inv_mat)
-                pos_red.append(red)
+                pos_red.append(red.tolist())
 
             return pos_car, pos_red
         
@@ -697,7 +705,7 @@ class PhononManager:
             qpts = []
             for point in self.klist:
                 qpts_red = np.matmul(point, inv_mat)
-                qpts.append(qpts_red)
+                qpts.append(qpts_red.tolist())
                 
             # find index and label of high symmetry q points in klist
             highsym_qpts = []
@@ -729,40 +737,28 @@ class PhononManager:
             
             return highsym_qpts, qpts, distances
         
-        # function for updating eigenvalues and eigenvectors in json_dict
-        def _update_vals_and_vecs():
+        # encoder for printing numpy objects to json
+        # credit for encoder:
+        # https://stackoverflow.com/questions/50916422/python-typeerror-object-of-type-int64-is-not-json-serializable
+        class NpEncoder(json.JSONEncoder):
+            def default(self, obj):
+                if isinstance(obj, np.integer):
+                    return int(obj)
+                if isinstance(obj, np.floating):
+                    return float(obj)
+                if isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                return super(NpEncoder, self).default(obj)
 
-            # speed of light in cm/s for converting THz -> cm^-1
-            SOL = 29979245800
-
-            # create lists for values and vectors
-            eigenvalues = []
-            vectors = []
-
-            # loop through vals and vecs
-            for val_and_vec in self.normal_modes:
-                val = val_and_vec[0]
-                vec = val_and_vec[2]
-
-                # values need to be in units of cm^-1, currently in THz
-                val = val*10**12/SOL
-
-                # vectors are already formatted correctly
-                eigenvalues.append(val)
-                vectors.append(vec)
-
-            return eigenvalues, vectors
-        
         # use functions to assign values to json_dict
         json_dict['lattice'] = _update_lattice()
         json_dict['atom_types'], json_dict['atom_numbers'], json_dict['formula'] = _update_atoms()
         json_dict['atom_pos_car'], json_dict['atom_pos_red'] = _update_pos()
         json_dict['highsym_qpts'], json_dict['qpoints'], json_dict['distances'] = _update_qpts()
-        json_dict['eigenvalues'], json_dict['vectors'] = _update_vals_and_vecs()
 
         # dump json_dict to json file
         with open(file_name, 'w') as json_file:
-            json.dump(json_dict, json_file, indent=4)
+            json.dump(json_dict, json_file, cls=NpEncoder)
 
     #-----------------------------------------------------------------------------------------------------------------#
 
