@@ -386,7 +386,7 @@ class PhononManager:
                 # split up eigenvector into smaller vectors of length 3 for each atom
                 # scale eigenvectors by masses
                 vecs = np.split(val_and_vec[1], self._natoms)
-                vecs = vecs*masses
+                vecs = vecs*masses*2*np.pi
 
                 # append to normal modes dictionary
                 self.normal_modes[f'{q_val}_{ind}'][0].append(freq)
