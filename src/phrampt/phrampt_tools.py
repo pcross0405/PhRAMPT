@@ -651,11 +651,12 @@ class PhononManager:
             # subtract mass from array of masses, find index of what value is closest to zero
             elements = []
             atomic_num = []
-            for atom in self._center_info:
-                mass = self._center_info[atom][1]
-                i = np.argmin(abs(atom_masses - mass))
-                elements.append(atom_labels[i])
-                atomic_num.append(i+1)
+            for atom in self._all_info:
+                if int(atom) < self._natoms:
+                    mass = self._all_info[atom][1]
+                    i = np.argmin(abs(atom_masses - mass))
+                    elements.append(atom_labels[i])
+                    atomic_num.append(i+1)
 
             # find formula based off of recurrence of elements
             formula = ''
