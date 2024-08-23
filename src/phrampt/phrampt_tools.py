@@ -592,11 +592,11 @@ class PhononManager:
             'highsym_qpts':None,
             'qpoints':None,
             'distances':None,
-            'eigenvalues':[[a*10**12/SOL for a in self.normal_modes[k][0]] for k in self.normal_modes],
+            'eigenvalues':[[freq*10**12/SOL for freq in self.normal_modes[qpt][0]] for qpt in self.normal_modes],
             'vectors':[[[[list(components) for components in zip(eigenvec.real.tolist(), eigenvec.imag.tolist())] 
                          for eigenvec in band] 
-                         for band in self.normal_modes[qpoint][2]] 
-                         for qpoint in self.normal_modes]
+                         for band in self.normal_modes[qpt][2]] 
+                         for qpt in self.normal_modes]
         }
 
         # create variables for real space lattice vectors since many of following functions will use these
